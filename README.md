@@ -1,4 +1,4 @@
-![data-chaos-information-insight.jpg](https://s.iimg.su/s/10/GgT1wgg5v3wjrwk8DLLMRKHLitj3itlO2sh5SUOk.jpg)
+[![1.jpg](https://s.iimg.su/s/10/pTtIQrGNFrUCnokcpCpg8O7p0K0PfsOlm8RFuUFX.jpg)]
 # Всем привет!👋 Меня зовут Максим и я Аналитик!    Добро пожаловать в мой GitHub профиль!
 
 ## О себе
