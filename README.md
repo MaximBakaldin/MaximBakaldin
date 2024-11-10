@@ -20,7 +20,8 @@ Python, SQL, Tableau, DataLens, Excel, GoogleSheets и другие
 | [Анализ конференций TED](ted) | Анализ выступлений на конференциях TED с помощью Tableau (от англ. Net Promoter Score)|*Tableau*|
 | [Анализ общепита Москвы ](moscow_places) | Анализ рынка общественного питания города Москвы | *python*, *numpy*,*pandas*, seaborn, plotly, requests, beutifulsoup, figma|
 | [Изучение рынка кинопроката](cinema) | Анализ зарубежного и отечественного кинематографа на основе данных кинопоиска | *python*, *numpy*, *pandas*, *matplotlib*, *seaborn*, *re|
-| [Исследование надёжности заёмщиков](reliability_of_borrowers) | Анализу данных банка, с целью выяснить какое влияние на платежеспособность клиентов, оказывают  различные факторы | *python*, *pandas*, *matpmatplotlib*, *numpy*, *missingno*|
+| [Анализ рынка недвижимости](exploratory_data_analysis) | Анализ данных с сайта Яндекс Недвижимость по квартирам в Санкт-Питербурге и в соседних населённых пунках | *python*, *pandas*, *matpmatplotlib*, *numpy*, *missingno*|
+| [Исследование надёжности заёмщиков](reliability_of_borrowers) | Анализ данных банка, с целью выяснить какое влияние на платежеспособность клиентов, оказывают  различные факторы | *python*, *pandas*, *matpmatplotlib*, *numpy*, *missingno*|
 
 ### Мои контакты
 - Моя электронная почта: [bakaldinmm@mail.ru]
