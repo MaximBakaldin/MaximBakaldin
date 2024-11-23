@@ -17,7 +17,7 @@ Python, SQL, Tableau, DataLens, Excel, GoogleSheets и другие
 | Название проекта | Описание | Используемые инструменты | 
 | :---------------------- | :---------------------- | :---------------------- |
 | [Анализ вакансий на hh.ru](hh_analysis/) | Задача выявить различия в предлагаемых вакансиях для аналитиков данных и системных аналитиков. | *python*, *pandas*, *matplotlib*, *seaborn*, *requests*, *BeautifulSoup*, *sklearn* , *pymorphy2*, *re*, *tqdm* |
-| 
+
 
 ### Мои проекты в рамках обучения в Yandex.Practicum
 
