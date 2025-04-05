@@ -25,10 +25,6 @@ Python, SQL, Tableau, DataLens, Excel, GoogleSheets и другие
 | [Когортный анализ](product) | Анализ продуктовых метрик с целью определения эффективности маркетинговой кампании| *python*, *pandas*, *matplotlib*, *seaborn*|
 | [Анализ уровня NPS](net_promoter_score) | Анализ уровня потребительской лояльности, или NPS (от англ. Net Promoter Score), среди клиентов телекомуникационной компании в России. | *python*, *pandas*, *sqlalchemy*, *SQL*, *Tableau*|
 | [Анализ конференций TED](ted) | Анализ выступлений на конференциях TED с помощью Tableau (от англ. Net Promoter Score)|*Tableau*|
-| [Анализ общепита Москвы ](moscow_places) | Анализ рынка общественного питания города Москвы | *python*, *numpy*,*pandas*, seaborn, plotly, requests, beutifulsoup, figma|
-| [Изучение рынка кинопроката](cinema) | Анализ зарубежного и отечественного кинематографа на основе данных кинопоиска | *python*, *numpy*, *pandas*, *matplotlib*, *seaborn*, *re|
-| [Анализ рынка недвижимости](exploratory_data_analysis) | Анализ данных с сайта Яндекс Недвижимость по квартирам в Санкт-Питербурге и в соседних населённых пунках | *python*, *pandas*, *matpmatplotlib*, *numpy*, *missingno*|
-| [Исследование надёжности заёмщиков](reliability_of_borrowers) | Анализ данных банка, с целью выяснить какое влияние на платежеспособность клиентов, оказывают  различные факторы | *python*, *pandas*, *matpmatplotlib*, *numpy*, *missingno*|
 
 ### Мои контакты
 Если у вас есть какие-либо вопросы или комментарии, можете написать мне:
