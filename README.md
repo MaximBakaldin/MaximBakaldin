@@ -1,4 +1,4 @@
-![1.jpg](https://s.iimg.su/s/10/pTtIQrGNFrUCnokcpCpg8O7p0K0PfsOlm8RFuUFX.jpg)
+![1](https://github.com/user-attachments/assets/be5be694-a345-4bbf-9c5b-29c90c7af94c)
 ## Всем привет!👋 Меня зовут Максим и я аналитик!
 ## Добро пожаловать в мой GitHub профиль!
 
