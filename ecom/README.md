@@ -26,6 +26,8 @@
 ---
 
 ##  Архитектура пайплайна
+![image](https://github.com/user-attachments/assets/7acabb57-4174-4b1f-9537-37adca4d0a40)
+
 ![image](https://github.com/user-attachments/assets/36b8e934-3621-40d8-bcd1-f0d50fe7a54b)
 
 ![image](https://github.com/user-attachments/assets/0d35166a-d2db-4a5b-bdc9-b0ec7d2bc999)
