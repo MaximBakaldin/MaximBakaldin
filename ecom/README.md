@@ -1,6 +1,6 @@
 
 
-# Аналитика e-commerce данных (Olist + синтетика)
+# Анализ e-commerce на данных Olist
 ![olist](https://github.com/user-attachments/assets/72dec008-62a1-4f3e-9d00-6ef02cc38b07)
 
 
