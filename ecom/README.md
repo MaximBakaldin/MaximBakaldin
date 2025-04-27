@@ -26,7 +26,8 @@
 Хранилище: Supabase (PostgreSQL)
 
 **ER-диаграмма**:  
-![схемабд](https://github.com/user-attachments/assets/8957064c-8896-46e5-a485-a40233cd94aa)
+![Untitled (2)](https://github.com/user-attachments/assets/75bfd187-e43a-436c-a7ba-98a3c29632ae)
+
 
 
 ## Этапы реализации
