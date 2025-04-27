@@ -63,11 +63,11 @@
 
 | Путь | Назначение |
 |:----|:------------|
-| `src/` | Скрипты обработки данных |
-| `ecom_preprocessing/analyze/` | Загрузка и валидация в PostgreSQL |
+| [`src/`](src/) | Скрипты обработки данных |
+| [`notebooks/ecom_preprocessing`](notebooks/ecom_preprocessing/ecom_preprocessing.ipynb)  | Загрузка и валидация в PostgreSQL |
 | `notebooks/metrics/` | Расчёт бизнес и продуктовых метрик |
 | `notebooks/dashboard/` | Подготовка BI-дашборда |
-| `README.md` | Описание проекта |
+
 
 ---
 
