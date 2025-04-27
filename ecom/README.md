@@ -64,7 +64,7 @@
 | Путь | Назначение |
 |:----|:------------|
 | [`src/`](src/) | Скрипты обработки данных |
-| [`ecom_preprocessing`](notebooks/ecom_preprocessing/ecom_preprocessing.ipynb)  | Загрузка и валидация в PostgreSQL |
+| [`notebooks/ecom_preprocessing`](notebooks/ecom_preprocessing/ecom_preprocessing.ipynb)  | Загрузка и валидация в PostgreSQL |
 | `notebooks/metrics/` | Расчёт бизнес и продуктовых метрик |
 | `notebooks/dashboard/` | Подготовка BI-дашборда |
 
