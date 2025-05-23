@@ -64,7 +64,7 @@
 |:----|:------------|
 | [`src/`](src/) | Скрипты обработки данных |
 | [`notebooks/ecom_preprocessing`](notebooks/ecom_preprocessing/ecom_preprocessing.ipynb)  | Загрузка и валидация в PostgreSQL |
-| `notebooks/metrics/` | Расчёт бизнес и продуктовых метрик |
+| [`notebooks/ecom_metrics`](notebooks/ecom_metrics/metrics_mvp.ipynb)| Расчёт бизнес и продуктовых метрик |
 | `notebooks/dashboard/` | Подготовка BI-дашборда |
 
 
