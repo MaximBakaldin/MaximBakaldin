@@ -1,0 +1,77 @@
+name: Family Budget · GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - "family-budget/**"
+      - ".github/workflows/family-budget-pages.yml"
+      - "src/**"
+      - "public/**"
+      - "scripts/**"
+      - "tests/**"
+      - "supabase/**"
+      - "package*.json"
+      - "*config*"
+      - "index.html"
+      - ".nvmrc"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: family-budget-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate application
+        id: layout
+        shell: bash
+        run: |
+          if [ -f family-budget/package.json ]; then
+            echo 'app_dir=family-budget' >> "$GITHUB_OUTPUT"
+          elif [ -f package.json ]; then
+            echo 'app_dir=.' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Application package.json not found' >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ${{ steps.layout.outputs.app_dir }}/package-lock.json
+      - name: Install dependencies
+        working-directory: ${{ steps.layout.outputs.app_dir }}
+        run: npm ci
+      - name: Validate configuration
+        working-directory: ${{ steps.layout.outputs.app_dir }}
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: node scripts/validate-deploy-env.mjs
+      - uses: actions/configure-pages@v5
+        id: pages
+      - name: Test and build
+        working-directory: ${{ steps.layout.outputs.app_dir }}
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: npm run check
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.layout.outputs.app_dir }}/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
