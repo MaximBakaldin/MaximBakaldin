@@ -1201,7 +1201,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.4.0</small>
+            <small>Версия 0.4.1</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

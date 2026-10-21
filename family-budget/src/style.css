@@ -1128,3 +1128,186 @@ nav {
 .account-toolbar select {
   width: 100%;
 }
+
+/* Denser screens; inputs stay at 16px to avoid iOS focus zoom. */
+:root {
+  font-size: 14px;
+  --nav-height: calc(51px + max(6px, env(safe-area-inset-bottom)));
+}
+.shell {
+  padding: max(10px, env(safe-area-inset-top)) 14px
+    calc(72px + env(safe-area-inset-bottom));
+}
+header {
+  margin-bottom: 6px;
+}
+header h1 {
+  font-size: 21px;
+  margin: 2px 0;
+}
+h2 {
+  font-size: 19px;
+  margin: 8px 0;
+}
+h3 {
+  font-size: 16px;
+  margin: 8px 0;
+}
+article {
+  padding: 11px;
+  margin: 7px 0;
+  border-radius: 14px;
+}
+label {
+  font-size: 13px;
+  margin: 8px 0 6px;
+}
+button {
+  padding: 9px 12px;
+}
+input,
+select {
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+.refresh {
+  width: 44px;
+  height: 44px;
+  padding: 4px;
+  font-size: 21px;
+}
+.sync-status {
+  margin-bottom: 6px;
+}
+.month-picker {
+  margin: 4px 0 8px;
+}
+.subnav {
+  margin: 8px 0;
+  padding: 3px;
+}
+.metric-grid {
+  gap: 6px;
+}
+.metric-grid article {
+  padding: 8px 10px;
+  border-radius: 14px;
+}
+.metric-grid strong,
+.metric-grid .metric-value strong {
+  font-size: clamp(16px, 4.8vw, 22px);
+  margin: 3px 0;
+}
+.metric-value {
+  min-height: 32px;
+}
+.category-bullet {
+  margin: 7px 0 9px;
+}
+.category-bullet small {
+  margin-top: 4px;
+}
+.compact-hero {
+  padding: 12px;
+}
+.compact-hero h2 {
+  font-size: 25px;
+  margin: 6px 0;
+}
+.editor {
+  padding: 11px;
+  margin: 8px 0;
+}
+.comparison-row {
+  padding: 8px 0;
+}
+nav {
+  padding-top: 6px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+}
+nav button {
+  min-height: 44px;
+}
+
+.transaction-form {
+  padding-bottom: 76px;
+}
+.transaction-form .toggle {
+  margin: 4px 0 8px;
+  gap: 6px;
+}
+.transaction-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 10px;
+}
+.transaction-fields label {
+  min-width: 0;
+  margin: 0;
+}
+.transaction-fields input {
+  width: 100%;
+  max-width: 100%;
+}
+.transaction-form .fieldlabel {
+  margin-top: 10px;
+  font-size: 13px;
+}
+.transaction-form .chips {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.transaction-form .chips button {
+  min-height: 44px;
+  padding: 6px 5px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.transaction-form .comment-toggle {
+  padding-left: 0;
+}
+.transaction-form label[hidden] {
+  display: none;
+}
+.transaction-form input {
+  scroll-margin-bottom: 150px;
+}
+.transaction-dock {
+  position: fixed;
+  z-index: 11;
+  bottom: max(var(--nav-height), var(--keyboard-inset, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(550px, 100%);
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.transaction-dock .actions {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+.transaction-dock .actions button[type="submit"] {
+  flex: 1;
+}
+.transaction-dock .error {
+  margin: 0 0 6px;
+  padding: 8px;
+  font-size: 12px;
+  max-height: 25dvh;
+  overflow: auto;
+}
+@media (max-width: 350px) {
+  .shell {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .transaction-fields {
+    gap: 6px;
+  }
+  .transaction-fields input {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

@@ -16,6 +16,9 @@ describe("Локальный бюджет", () => {
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "100,10");
     await u.click(screen.getByRole("button", { name: "Продукты" }));
+    await u.click(
+      screen.getByRole("button", { name: "+ Комментарий", exact: true }),
+    );
     await u.type(screen.getByLabelText("Комментарий"), "Покупка");
     await u.click(
       screen.getByRole("button", { name: "Сохранить", exact: true }),
