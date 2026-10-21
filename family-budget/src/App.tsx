@@ -1,3 +1,4 @@
+import type { CategoryUsage } from "./lib/categories";
 import { obligations } from "./lib/obligations";
 import { Help } from "./components/Help";
 import { Bullet } from "./components/Bullet";
@@ -157,6 +158,10 @@ function Workspace({ user }: { user: string }) {
   const [invite, setInvite] = useState("");
   const [newInvite, setNewInvite] = useState("");
   const [memberName, setMemberName] = useState("");
+  const [categoryUsage, setCategoryUsage] = useState<{
+    family: string;
+    rows: CategoryUsage[];
+  }>({ family: "", rows: [] });
   const [trend, setTrend] = useState<MonthPoint[]>([]);
 
   const refresh = useCallback(async () => {
@@ -275,6 +280,25 @@ function Workspace({ user }: { user: string }) {
       void supabase?.removeChannel(channel);
     };
   }, [familyId, refresh]);
+  useEffect(() => {
+    if (tab !== "add" || !familyId) return;
+    let active = true;
+    void (
+      configured
+        ? api.popularCategories(familyId)
+        : Promise.resolve(local.localCategoryUsage())
+    )
+      .then((rows) => {
+        if (active) setCategoryUsage({ family: familyId, rows });
+      })
+      .catch(() => {
+        if (active) setCategoryUsage({ family: familyId, rows: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, [tab, familyId, data?.revision]);
+
   useEffect(() => {
     if (tab !== "history" || !familyId) return;
     let active = true;
@@ -838,6 +862,9 @@ function Workspace({ user }: { user: string }) {
         <TransactionForm
           key={draft.id}
           initial={draft}
+          categoryUsage={
+            categoryUsage.family === familyId ? categoryUsage.rows : []
+          }
           cats={data.categories.filter(
             (c) => !c.archived || c.id === draft.category_id,
           )}
@@ -1244,7 +1271,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.6.1</small>
+            <small>Версия 0.6.2</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

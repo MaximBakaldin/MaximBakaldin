@@ -1835,3 +1835,23 @@ nav button {
   color: var(--muted);
   font-size: 13px;
 }
+
+.quick-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 10px;
+}
+.quick-categories button {
+  min-height: 36px;
+  padding: 5px 6px;
+  background: var(--soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.quick-categories button.selected {
+  background: #187b64;
+  color: white;
+  box-shadow: inset 0 0 0 2px var(--accent-text);
+}

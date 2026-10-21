@@ -1,3 +1,4 @@
+import type { CategoryUsage } from "./categories";
 import { client } from "../db";
 import type { Draft, HistoryFilter, Snapshot, Transaction } from "../types";
 import { monthBounds } from "./dates";
@@ -86,3 +87,6 @@ export async function exportHistory(
     throw new Error("Данные изменились во время экспорта. Повторите выгрузку");
   return rows;
 }
+
+export const popularCategories = (family: string) =>
+  rpc<CategoryUsage[]>("popular_categories", { p_household: family });

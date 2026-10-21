@@ -701,3 +701,34 @@ describe("Проценты по накоплениям", () => {
     await expect(credits("2025-01-31")).rejects.toThrow("permission denied");
   });
 });
+
+it("популярность считает операции обоих участников без доступа другой семьи и anon", async () => {
+  await save();
+  await as(B);
+  await save(0, "1", "2025-01-01", "10000000-0000-0000-0000-000000000002");
+  const counts = await db.query<{ category_id: string; uses: number }>(
+    "select * from public.popular_categories($1)",
+    [family],
+  );
+  expect(counts.rows.map((r) => ({ ...r, uses: Number(r.uses) }))).toEqual([
+    { category_id: category, uses: 2 },
+  ]);
+  await as(C);
+  expect(
+    (await db.query("select * from public.popular_categories($1)", [family]))
+      .rows,
+  ).toEqual([]);
+  await db.exec("reset role; set role anon");
+  await expect(
+    db.query("select * from public.popular_categories($1)", [family]),
+  ).rejects.toThrow(/permission denied/);
+  await db.exec("reset role");
+  await db.query("update public.categories set archived=true where id=$1", [
+    category,
+  ]);
+  await as(A);
+  expect(
+    (await db.query("select * from public.popular_categories($1)", [family]))
+      .rows,
+  ).toEqual([]);
+});

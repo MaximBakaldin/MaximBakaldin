@@ -1,3 +1,4 @@
+import type { CategoryUsage } from "./categories";
 import {
   calculatedSavings,
   validateInterest,
@@ -542,4 +543,11 @@ export function localSavingsAccount(
     },
   ];
   write(s);
+}
+
+export function localCategoryUsage(): CategoryUsage[] {
+  const counts = new Map<string, number>();
+  for (const t of read().transactions)
+    counts.set(t.category_id, (counts.get(t.category_id) ?? 0) + 1);
+  return Array.from(counts, ([category_id, uses]) => ({ category_id, uses }));
 }

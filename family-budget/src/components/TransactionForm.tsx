@@ -1,3 +1,4 @@
+import { popularCategories, type CategoryUsage } from "../lib/categories";
 import { useEffect, useRef, useState } from "react";
 import type { Category, Draft } from "../types";
 import { parseMoney } from "../lib/money";
@@ -6,12 +7,14 @@ import { validDate } from "../lib/dates";
 export function TransactionForm({
   initial,
   cats,
+  categoryUsage = [],
   busy,
   onSave,
   onCancel,
 }: {
   initial: Draft;
   cats: Category[];
+  categoryUsage?: CategoryUsage[];
   busy: boolean;
   onSave: (draft: Draft) => Promise<boolean>;
   onCancel: () => void;
@@ -109,6 +112,26 @@ export function TransactionForm({
                 onChange={(e) => change({ occurred_on: e.target.value })}
               />
             </label>
+          </div>
+          <div
+            className="quick-categories"
+            role="group"
+            aria-label="Быстрый выбор категории"
+          >
+            {popularCategories(
+              cats.filter((c) => c.kind === draft.kind),
+              categoryUsage,
+            ).map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                aria-pressed={draft.category_id === c.id}
+                className={draft.category_id === c.id ? "selected" : ""}
+                onClick={() => change({ category_id: c.id })}
+              >
+                {c.name}
+              </button>
+            ))}
           </div>
           <CategorySelect
             key={draft.kind}
