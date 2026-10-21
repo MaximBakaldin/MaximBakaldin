@@ -1,3 +1,4 @@
+import { validateInterest, type InterestSettings } from "./interest";
 import { configured } from "../db";
 import { rpc } from "./api";
 import * as local from "./demo";
@@ -91,12 +92,25 @@ export const saveSavingsAccount = (
   id: string,
   name: string,
   version: number,
-) =>
-  configured
+  settings?: InterestSettings,
+) => {
+  if (settings) validateInterest(settings);
+  return configured
     ? rpc("save_savings_account", {
         p_household: family,
         p_id: id,
         p_name: name,
         p_version: version,
+        ...(settings
+          ? {
+              p_rate:
+                settings.annual_rate === ""
+                  ? null
+                  : (settings.annual_rate ?? null),
+              p_start: settings.interest_start ?? null,
+              p_frequency: settings.interest_frequency ?? "monthly",
+            }
+          : {}),
       })
-    : local.localSavingsAccount(id, name, version);
+    : local.localSavingsAccount(id, name, version, settings);
+};

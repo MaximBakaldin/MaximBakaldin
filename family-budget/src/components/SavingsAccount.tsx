@@ -1,13 +1,29 @@
 import { Help } from "./Help";
+import { Modal } from "./Modal";
 import { useState } from "react";
-import type { Run, Savings, SavingsDraft, SavingsKind } from "../types";
+import type {
+  Run,
+  Savings,
+  SavingsDraft,
+  SavingsKind,
+  SavingsAccountData,
+} from "../types";
 import { currency, parseMoney } from "../lib/money";
 import { saveSavings, saveSavingsAccount, signedCents } from "../lib/features";
 import { today } from "../lib/dates";
-const labels: Record<SavingsKind, string> = {
+const labels = {
   opening: "Начальный остаток",
   deposit: "Пополнение",
   withdrawal: "Снятие",
+  interest: "Проценты",
+};
+type AccountForm = {
+  id: string;
+  name: string;
+  version: number;
+  rate: string;
+  start: string;
+  frequency: "daily" | "monthly";
 };
 export function SavingsAccount({
   family,
@@ -22,22 +38,28 @@ export function SavingsAccount({
   busy: boolean;
   run: Run;
 }) {
-  const [selected, setSelected] = useState("");
-  const [accountForm, setAccountForm] = useState<{
-    id: string;
-    name: string;
-    version: number;
-  } | null>(null);
-  const accounts = data.accounts ?? [];
-  const account = accounts.find((a) => a.id === selected) ?? accounts[0];
-  const entries = data.entries.filter((e) => e.account_id === account?.id);
+  const [accountForm, setAccountForm] = useState<AccountForm | null>(null);
   const [draft, setDraft] = useState<SavingsDraft | null>(null);
-  function create(kind: SavingsKind) {
+  const [formError, setFormError] = useState("");
+  const accounts = data.accounts ?? [];
+  function editAccount(a?: SavingsAccountData) {
+    setFormError("");
+    setAccountForm({
+      id: a?.id ?? crypto.randomUUID(),
+      name: a?.name ?? "",
+      version: a?.version ?? 0,
+      rate: a?.annual_rate == null ? "" : String(a.annual_rate),
+      start: a?.interest_start ?? today(),
+      frequency: a?.interest_frequency ?? "monthly",
+    });
+  }
+  function create(a: SavingsAccountData, kind: SavingsKind) {
+    setFormError("");
     setDraft({
       id: crypto.randomUUID(),
       version: 0,
       kind,
-      account_id: account?.id,
+      account_id: a.id,
       amount: "",
       occurred_on: today().startsWith(month) ? today() : month + "-01",
       comment: "",
@@ -45,251 +67,365 @@ export function SavingsAccount({
   }
   return (
     <section>
-      <h2>
-        Накопительные счета{" "}
-        <Help label="Накопительный счёт">
-          Пополнение уменьшает свободные деньги месяца, снятие возвращает их.
-          Переводы и начальный остаток не входят в доходы и расходы.
-        </Help>
-      </h2>
-      <div className="account-toolbar">
-        <label>
-          Накопительный счёт
-          <select
-            value={account?.id ?? ""}
-            onChange={(e) => {
-              setSelected(e.target.value);
-              setDraft(null);
-            }}
-          >
-            {!accounts.length && <option value="">Создайте счёт</option>}
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="tiny"
-          onClick={() =>
-            setAccountForm({ id: crypto.randomUUID(), name: "", version: 0 })
-          }
-        >
+      <div className="section-heading">
+        <h2>
+          Накопления{" "}
+          <Help label="Накопления и проценты">
+            Показаны все счета на конец выбранного месяца. Пополнения и снятия
+            меняют свободные деньги месяца. Автопроценты увеличивают баланс
+            накоплений; начисляются за завершённые дни или месяцы, без будущих
+            начислений. Ставка применяется к остатку на конец дня, год — 365 или
+            366 дней. Изменение ставки, даты начала или прошлых движений
+            пересчитает проценты.
+          </Help>
+        </h2>
+        <button className="tiny" onClick={() => editAccount()}>
           Новый счёт
         </button>
-        {account && (
-          <button className="tiny" onClick={() => setAccountForm(account)}>
-            Переименовать
-          </button>
-        )}
       </div>
-      {accountForm && (
-        <form
-          className="editor"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(async () => {
-              await saveSavingsAccount(
-                family,
-                accountForm.id,
-                accountForm.name,
-                accountForm.version,
-              );
-            }, "Счёт сохранён").then((ok) => {
-              if (ok) {
-                setSelected(accountForm.id);
-                setAccountForm(null);
-                setDraft(null);
-              }
-            });
-          }}
+      <div className="line savings-total">
+        <small>Всего на счетах</small>
+        <b>{currency(signedCents(data.balance_cents))}</b>
+      </div>
+      {!accounts.length && (
+        <p className="empty">Создайте первый накопительный счёт.</p>
+      )}
+      {accounts.map((a) => (
+        <article
+          className="savings-card"
+          key={a.id}
+          aria-label={`Счёт ${a.name}`}
         >
-          <label>
-            Название счёта
-            <input
-              autoFocus
-              required
-              maxLength={60}
-              value={accountForm.name}
-              onChange={(e) =>
-                setAccountForm({ ...accountForm, name: e.target.value })
-              }
-            />
-          </label>
-          <div className="actions">
-            <button disabled={busy}>Сохранить счёт</button>
+          <div className="line">
+            <h3>{a.name}</h3>
             <button
-              type="button"
-              className="ghost"
-              onClick={() => setAccountForm(null)}
+              className="tiny"
+              aria-label={`Настроить счёт ${a.name}`}
+              onClick={() => editAccount(a)}
             >
-              Отмена
+              Настроить
             </button>
           </div>
-        </form>
-      )}
-      {account && (
-        <>
-          <article className="hero compact-hero">
+          <div className="line">
+            <strong className="account-balance">
+              {currency(signedCents(a.balance_cents))}
+            </strong>
             <small>
-              {account.name} · на конец {month}
+              {a.annual_rate != null && Number(a.annual_rate) > 0
+                ? `${Number(a.annual_rate)}% годовых · ${a.interest_frequency === "daily" ? "ежедневно" : "ежемесячно"}`
+                : "Без процентов"}
             </small>
-            <h2>{currency(signedCents(account.balance_cents))}</h2>
-            <small>
-              Переводы за месяц: {currency(signedCents(account.transfer_cents))}
+          </div>
+          {Number(a.interest_cents ?? 0) > 0 && (
+            <small className="green">
+              Начислено за месяц: +{currency(signedCents(a.interest_cents!))}
             </small>
-          </article>
-
+          )}
           <div className="actions">
-            {!account.has_opening && (
-              <button className="secondary" onClick={() => create("opening")}>
-                Задать начальный остаток
-              </button>
-            )}
-            <button onClick={() => create("deposit")}>Пополнить</button>
-            <button className="secondary" onClick={() => create("withdrawal")}>
+            <button
+              className="tiny"
+              aria-label={`Пополнить ${a.name}`}
+              onClick={() => create(a, "deposit")}
+            >
+              Пополнить
+            </button>
+            <button
+              className="tiny"
+              aria-label={`Снять со счёта ${a.name}`}
+              onClick={() => create(a, "withdrawal")}
+            >
               Снять
             </button>
+            {!a.has_opening && (
+              <button
+                className="tiny"
+                aria-label={`Начальный остаток: ${a.name}`}
+                onClick={() => create(a, "opening")}
+              >
+                Начальный остаток
+              </button>
+            )}
           </div>
-          {draft && (
-            <form
-              className="editor"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run(async () => {
-                  await saveSavings(family, draft);
-                }, "Накопления обновлены").then((ok) => {
-                  if (ok) setDraft(null);
-                });
-              }}
-            >
-              <fieldset disabled={busy}>
-                <h3>{labels[draft.kind]}</h3>
+          <details className="savings-history">
+            <summary>История</summary>
+            {!data.entries.some((e) => e.account_id === a.id) && (
+              <p className="hint">За этот месяц движений нет.</p>
+            )}
+            {data.entries
+              .filter((e) => e.account_id === a.id)
+              .map((e) => (
+                <div className="saving-entry" key={e.id}>
+                  <div className="line">
+                    <div>
+                      <b>{labels[e.kind]}</b>
+                      <small>{e.occurred_on}</small>
+                    </div>
+                    <b>
+                      {e.kind === "withdrawal" ? "−" : "+"}
+                      {currency(parseMoney(e.amount))}
+                    </b>
+                  </div>
+                  {e.comment && e.kind !== "interest" && (
+                    <p className="comment">{e.comment}</p>
+                  )}
+                  {e.kind !== "interest" && (
+                    <div className="actions">
+                      <button
+                        className="tiny"
+                        disabled={busy}
+                        onClick={() => {
+                          setFormError("");
+                          setDraft({
+                            ...e,
+                            kind: e.kind as SavingsKind,
+                            amount: String(e.amount),
+                            comment: e.comment ?? "",
+                          });
+                        }}
+                      >
+                        Изменить перевод
+                      </button>
+                      <button
+                        className="tiny danger"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              "Удалить движение? Автопроценты будут пересчитаны.",
+                            )
+                          )
+                            void run(async () => {
+                              await saveSavings(
+                                family,
+                                {
+                                  ...e,
+                                  kind: e.kind as SavingsKind,
+                                  amount: String(e.amount),
+                                  comment: e.comment ?? "",
+                                },
+                                true,
+                              );
+                            }, "Движение удалено");
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </details>
+        </article>
+      ))}
+      {accountForm && (
+        <Modal
+          title={accountForm.version ? "Настройки счёта" : "Новый счёт"}
+          onClose={() => {
+            if (!busy) setAccountForm(null);
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setFormError("");
+              void run(async () => {
+                try {
+                  await saveSavingsAccount(
+                    family,
+                    accountForm.id,
+                    accountForm.name,
+                    accountForm.version,
+                    {
+                      annual_rate: accountForm.rate.trim()
+                        ? accountForm.rate.replace(",", ".")
+                        : null,
+                      interest_start: accountForm.start || null,
+                      interest_frequency: accountForm.frequency,
+                    },
+                  );
+                } catch (e) {
+                  setFormError(
+                    e instanceof Error ? e.message : "Не удалось сохранить",
+                  );
+                  throw e;
+                }
+              }, "Счёт сохранён").then((ok) => {
+                if (ok) setAccountForm(null);
+              });
+            }}
+          >
+            <fieldset disabled={busy}>
+              <label>
+                Название счёта
+                <input
+                  autoFocus
+                  required
+                  maxLength={60}
+                  value={accountForm.name}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, name: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Годовая ставка, %
+                <input
+                  inputMode="decimal"
+                  placeholder="Без процентов"
+                  value={accountForm.rate}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, rate: e.target.value })
+                  }
+                />
+              </label>
+              <div className="twocol">
                 <label>
-                  Счёт движения
+                  Начисление
                   <select
-                    required
-                    value={draft.account_id ?? account.id}
+                    value={accountForm.frequency}
                     onChange={(e) =>
-                      setDraft({ ...draft, account_id: e.target.value })
+                      setAccountForm({
+                        ...accountForm,
+                        frequency: e.target.value as "daily" | "monthly",
+                      })
                     }
                   >
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
+                    <option value="monthly">Ежемесячно</option>
+                    <option value="daily">Ежедневно</option>
                   </select>
                 </label>
                 <label>
-                  Сумма перевода, ₽
-                  <input
-                    autoFocus
-                    inputMode="decimal"
-                    required
-                    value={draft.amount}
-                    onChange={(e) =>
-                      setDraft({ ...draft, amount: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Дата перевода
+                  Начало расчёта
                   <input
                     type="date"
                     min="1900-01-01"
                     max="9998-12-31"
-                    required
-                    value={draft.occurred_on}
+                    required={Boolean(accountForm.rate)}
+                    value={accountForm.start}
                     onChange={(e) =>
-                      setDraft({ ...draft, occurred_on: e.target.value })
+                      setAccountForm({ ...accountForm, start: e.target.value })
                     }
                   />
                 </label>
-                <label>
-                  Комментарий перевода
-                  <input
-                    maxLength={2000}
-                    value={draft.comment}
-                    onChange={(e) =>
-                      setDraft({ ...draft, comment: e.target.value })
-                    }
-                  />
-                </label>
-                <div className="actions">
-                  <button>Сохранить перевод</button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => setDraft(null)}
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </fieldset>
-            </form>
-          )}
-          <h3>Движения за {month}</h3>
-          {!entries.length && (
-            <p className="hint">
-              В этом месяце движений нет. Начальный остаток и старые переводы
-              доступны в своих месяцах.
-            </p>
-          )}
-          {entries.map((e) => (
-            <article key={e.id} className="entry">
-              <div>
-                <b>{labels[e.kind]}</b>
-                <small>{e.occurred_on}</small>
-                {e.comment && <p className="comment">{e.comment}</p>}
               </div>
-              <div className="entryright">
-                <b>
-                  {e.kind === "withdrawal" ? "−" : "+"}
-                  {currency(parseMoney(e.amount))}
-                </b>
-                <div>
-                  <button
-                    className="tiny"
-                    disabled={busy}
-                    onClick={() =>
-                      setDraft({
-                        ...e,
-                        amount: String(e.amount),
-                        comment: e.comment ?? "",
-                      })
-                    }
-                  >
-                    Изменить перевод
-                  </button>
-                  <button
-                    className="tiny danger"
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        confirm("Удалить это движение по накопительному счёту?")
-                      )
-                        void run(async () => {
-                          await saveSavings(
-                            family,
-                            {
-                              ...e,
-                              amount: String(e.amount),
-                              comment: e.comment ?? "",
-                            },
-                            true,
-                          );
-                        }, "Движение удалено");
-                    }}
-                  >
-                    Удалить
-                  </button>
-                </div>
+              <p className="hint">
+                Проценты увеличивают баланс автоматически. Изменение этих
+                условий пересчитает начисления с даты начала. Расчёт по остатку
+                на конец дня; условия банка могут отличаться.
+              </p>
+              {formError && (
+                <p role="alert" className="error">
+                  {formError}
+                </p>
+              )}
+              <div className="actions">
+                <button>Сохранить счёт</button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setAccountForm(null)}
+                >
+                  Отмена
+                </button>
               </div>
-            </article>
-          ))}
-        </>
+            </fieldset>
+          </form>
+        </Modal>
+      )}
+      {draft && (
+        <Modal
+          title={`${labels[draft.kind]} · ${accounts.find((a) => a.id === draft.account_id)?.name ?? ""}`}
+          onClose={() => {
+            if (!busy) setDraft(null);
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setFormError("");
+              void run(async () => {
+                try {
+                  await saveSavings(family, draft);
+                } catch (e) {
+                  setFormError(
+                    e instanceof Error ? e.message : "Не удалось сохранить",
+                  );
+                  throw e;
+                }
+              }, "Накопления обновлены").then((ok) => {
+                if (ok) setDraft(null);
+              });
+            }}
+          >
+            <fieldset disabled={busy}>
+              <label>
+                Счёт движения
+                <select
+                  value={draft.account_id}
+                  onChange={(e) =>
+                    setDraft({ ...draft, account_id: e.target.value })
+                  }
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Сумма перевода, ₽
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  required
+                  value={draft.amount}
+                  onChange={(e) =>
+                    setDraft({ ...draft, amount: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Дата перевода
+                <input
+                  type="date"
+                  min="1900-01-01"
+                  max="9998-12-31"
+                  required
+                  value={draft.occurred_on}
+                  onChange={(e) =>
+                    setDraft({ ...draft, occurred_on: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Комментарий перевода
+                <input
+                  maxLength={2000}
+                  value={draft.comment}
+                  onChange={(e) =>
+                    setDraft({ ...draft, comment: e.target.value })
+                  }
+                />
+              </label>
+              {formError && (
+                <p role="alert" className="error">
+                  {formError}
+                </p>
+              )}
+              <div className="actions">
+                <button>Сохранить перевод</button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setDraft(null)}
+                >
+                  Отмена
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </Modal>
       )}
     </section>
   );

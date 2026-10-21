@@ -1,3 +1,4 @@
+import { obligations } from "./lib/obligations";
 import { Help } from "./components/Help";
 import { Bullet } from "./components/Bullet";
 import { Analysis } from "./components/Analysis";
@@ -128,9 +129,9 @@ function Workspace({ user }: { user: string }) {
   const [budgetView, setBudgetView] = useState<
     "limits" | "recurring" | "savings"
   >("limits");
-  const [analysisView, setAnalysisView] = useState<
-    "overview" | "categories" | "operations"
-  >("overview");
+  const [analysisView, setAnalysisView] = useState<"overview" | "operations">(
+    "overview",
+  );
   const [allCategories, setAllCategories] = useState(false);
   const [trendLoading, setTrendLoading] = useState(true);
   const [trendError, setTrendError] = useState("");
@@ -485,6 +486,7 @@ function Workspace({ user }: { user: string }) {
         data.summary.find((s) => s.category_id === c.id)?.cents ?? "0",
       ),
       budget: data.budgets.find((b) => b.category_id === c.id),
+      ...obligations(data.recurring ?? [], c.id),
     }));
   const savings = data.savings ?? {
     balance_cents: "0",
@@ -493,20 +495,17 @@ function Workspace({ user }: { user: string }) {
     entries: [],
   };
   const transfers = signedCents(savings.transfer_cents);
-  const remainingPayments = (data.recurring ?? []).filter(
-    (r) => r.active && !r.payment,
-  );
-  const requiredLeft = total(
-    remainingPayments.map((r) => parseMoney(r.amount)),
+  const { paid: requiredPaid, pending: requiredLeft } = obligations(
+    data.recurring ?? [],
   );
   const ranked = cats
-    .filter((c) => c.spent > 0 || c.budget)
+    .filter((c) => c.spent > 0 || c.budget || c.pending)
     .sort((a, b) => b.spent - a.spent);
   const top = allCategories ? ranked : ranked.slice(0, 4);
   const catMaximum = Math.max(
     1,
     ...ranked.flatMap((c) => [
-      c.spent,
+      c.spent + c.pending,
       c.budget ? parseMoney(c.budget.amount, true) * 1.25 : 0,
     ]),
   );
@@ -534,18 +533,48 @@ function Workspace({ user }: { user: string }) {
       ? "Вы"
       : (data.members.find((m) => m.user_id === id)?.display_name ??
         "Бывший участник");
+  const refreshButton = (
+    <button
+      className="month-refresh"
+      aria-label="Обновить данные"
+      title={lastSync ? `Обновлено в ${lastSync}` : "Обновить данные"}
+      disabled={refreshing}
+      onClick={() => void refresh()}
+    >
+      ↻
+    </button>
+  );
   const monthPicker = (
-    <label className="month-picker">
-      Месяц
-      <input
-        aria-label="Месяц"
-        type="month"
-        min="1900-01"
-        max="9998-12"
-        value={month}
-        onChange={(e) => changeMonth(e.target.value)}
-      />
-    </label>
+    <div className="month-toolbar">
+      <button
+        className="month-arrow"
+        aria-label="Предыдущий месяц"
+        disabled={month === "1900-01"}
+        onClick={() => changeMonth(shiftMonth(month, -1))}
+      >
+        ‹
+      </button>
+      <label className="month-control">
+        <span>{monthLabel(month)}</span>
+        <input
+          aria-label="Месяц"
+          type="month"
+          min="1900-01"
+          max="9998-12"
+          value={month}
+          onChange={(e) => changeMonth(e.target.value)}
+        />
+      </label>
+      <button
+        className="month-arrow"
+        aria-label="Следующий месяц"
+        disabled={month === "9998-12"}
+        onClick={() => changeMonth(shiftMonth(month, 1))}
+      >
+        ›
+      </button>
+      {refreshButton}
+    </div>
   );
   async function save(d: Draft) {
     const ok = await run(async () => {
@@ -585,37 +614,27 @@ function Workspace({ user }: { user: string }) {
 
   return (
     <main className="shell">
-      <header>
-        <div>
-          <div className="brand">{data.family.name}</div>
-          <h1>
-            {tab === "home"
-              ? "Всё под контролем"
-              : tab === "history"
-                ? "Анализ"
-                : tab === "budget"
-                  ? "Бюджет"
-                  : tab === "settings"
-                    ? "Настройки"
-                    : "Операция"}
-          </h1>
+      <h1 className="sr-only">
+        {tab === "home"
+          ? "Всё под контролем"
+          : tab === "history"
+            ? "Анализ"
+            : tab === "budget"
+              ? "Бюджет"
+              : tab === "settings"
+                ? "Настройки"
+                : "Операция"}
+      </h1>
+      {tab === "settings" && (
+        <div className="settings-sync">
+          <span>
+            {configured
+              ? `Обновлено в ${lastSync}`
+              : "Данные хранятся на этом устройстве"}
+          </span>
+          {refreshButton}
         </div>
-        <button
-          className="refresh"
-          aria-label="Обновить данные"
-          disabled={refreshing}
-          onClick={() => void refresh()}
-        >
-          ↻
-        </button>
-      </header>
-      <div className="sync-status">
-        {configured
-          ? refreshing
-            ? "Обновляем…"
-            : `Обновлено в ${lastSync}`
-          : "На этом устройстве · данные сохраняются"}
-      </div>
+      )}
       {!configured && tab === "settings" && (
         <p className="notice">
           Локальный режим: данные хранятся в этом браузере. Для совместного
@@ -689,9 +708,11 @@ function Workspace({ user }: { user: string }) {
               <h3>
                 Расходы и бюджет{" "}
                 <Help label="Расходы и бюджет">
-                  Полоса — фактические расходы, риска — заданный лимит. При
-                  превышении полоса становится красной. Без заданного лимита
-                  риски нет. Длина полос категорий показана в общей шкале.
+                  Полоса — фактические расходы; тёмная часть с точками — уже
+                  оплаченные обязательные платежи внутри факта. Штриховка справа
+                  — обязательные платежи, ещё не внесённые в расходы. Риска —
+                  лимит. При превышении фактом полоса краснеет. У категорий
+                  общая шкала.
                 </Help>
               </h3>
               <button
@@ -713,6 +734,8 @@ function Workspace({ user }: { user: string }) {
             <Bullet
               actual={spent}
               limit={planned ? plan : null}
+              paid={requiredPaid}
+              pending={requiredLeft}
               label="Общий бюджет"
             />
             <div className="line spending-status">
@@ -732,6 +755,19 @@ function Workspace({ user }: { user: string }) {
                 К оплате: {currency(requiredLeft)} ↗
               </button>
             </div>
+            <div className="obligation-legend">
+              <span>
+                <i className="paid-key" />
+                Обязательные оплачено
+              </span>
+              <span>
+                <i className="pending-key" />К оплате
+              </span>
+            </div>
+            <small className="obligation-summary">
+              Оплачено {currency(requiredPaid)} · к оплате{" "}
+              {currency(requiredLeft)}
+            </small>
             <div className="category-bullets">
               {top.map((c) => {
                 const limit = c.budget
@@ -753,6 +789,8 @@ function Workspace({ user }: { user: string }) {
                       actual={c.spent}
                       limit={limit}
                       maximum={catMaximum}
+                      paid={c.paid}
+                      pending={c.pending}
                       label={c.name}
                     />
                     <small>
@@ -761,6 +799,12 @@ function Workspace({ user }: { user: string }) {
                         : "Лимит " + currency(limit)}
                       {limit !== null && c.spent > limit ? " · превышен" : ""}
                     </small>
+                    {(c.paid > 0 || c.pending > 0) && (
+                      <small className="obligation-summary">
+                        Обязательные: ✓ {currency(c.paid)} · к оплате{" "}
+                        {currency(c.pending)}
+                      </small>
+                    )}
                   </div>
                 );
               })}
@@ -813,8 +857,7 @@ function Workspace({ user }: { user: string }) {
           <div className="subnav" role="group" aria-label="Разделы анализа">
             {(
               [
-                ["overview", "Обзор"],
-                ["categories", "Категории"],
+                ["overview", "Динамика"],
                 ["operations", "Операции"],
               ] as const
             ).map(([key, label]) => (
@@ -833,10 +876,10 @@ function Workspace({ user }: { user: string }) {
               key={month}
               points={trend}
               cats={data.categories}
-              view={analysisView}
               loading={trendLoading}
               error={trendError}
-              onOperations={(id) => {
+              onOperations={(id, selectedMonth) => {
+                if (selectedMonth !== month) changeMonth(selectedMonth);
                 setCategory(id);
                 setSearch("");
                 setOffset(0);
@@ -1201,7 +1244,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.4.1</small>
+            <small>Версия 0.5.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

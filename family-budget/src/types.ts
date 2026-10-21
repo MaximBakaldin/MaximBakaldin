@@ -81,7 +81,7 @@ export type SavingsEntry = {
   account_id?: string;
   id: string;
   household_id: string;
-  kind: SavingsKind;
+  kind: SavingsKind | "interest";
   amount: string | number;
   occurred_on: string;
   comment: string | null;
@@ -111,6 +111,10 @@ export type Run = (
 ) => Promise<boolean>;
 
 export type SavingsAccountData = {
+  annual_rate?: string | number | null;
+  interest_start?: string | null;
+  interest_frequency?: "daily" | "monthly";
+  interest_cents?: string;
   id: string;
   name: string;
   version: number;

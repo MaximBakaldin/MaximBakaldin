@@ -1311,3 +1311,270 @@ nav button {
     padding-right: 6px;
   }
 }
+
+/* Compact period controls replace the page masthead. */
+.month-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.month-arrow,
+.month-refresh {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 2px 6px;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 24px;
+}
+.month-refresh {
+  margin-left: auto;
+  font-size: 21px;
+}
+.month-control {
+  position: relative;
+  margin: 0;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.month-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.month-control:focus-within {
+  outline: 2px solid #d89640;
+  border-radius: 8px;
+}
+.settings-sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+}
+.bullet {
+  height: 10px;
+}
+.bullet-paid,
+.bullet-pending {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+.bullet-paid,
+.paid-key {
+  background-color: #176550;
+  background-image: radial-gradient(#e4fff0 1px, transparent 1px);
+  background-size: 5px 5px;
+}
+.bullet.over .bullet-paid {
+  background-color: #8d2938;
+}
+.bullet-pending,
+.pending-key {
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 3px,
+    #b78b43 3px 5px
+  );
+  border: 1px solid #b78b43;
+}
+.bullet-marker {
+  z-index: 2;
+  height: 16px;
+}
+.obligation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.obligation-legend span {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.obligation-legend i {
+  width: 14px;
+  height: 8px;
+  display: inline-block;
+  border-radius: 2px;
+}
+.obligation-summary {
+  font-size: 10px;
+  margin: 4px 0 7px;
+}
+.inline-payment {
+  scroll-margin-bottom: calc(var(--nav-height) + 16px);
+  scroll-margin-top: 10px;
+  margin-bottom: 0;
+}
+.interactive-month-chart {
+  display: flex;
+  gap: 4px;
+  height: 123px;
+}
+.chart-month {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 4px 2px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.chart-month.selected {
+  background: var(--soft);
+  box-shadow: inset 0 -3px var(--accent-text);
+  color: var(--text);
+}
+.chart-month small {
+  font-size: 9px;
+}
+.chart-bar-space {
+  width: 100%;
+  height: 76px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 5px;
+}
+.chart-bar-space > span {
+  width: 50%;
+  max-width: 26px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+}
+.trend-chart-card .line {
+  margin-bottom: 4px;
+}
+.trend-chart-card h3 {
+  margin: 2px 0;
+  font-size: 14px;
+}
+.category-detail .toggle {
+  margin: 6px 0;
+}
+.category-detail .analysis-category small {
+  max-width: 70%;
+  font-size: 11px;
+}
+.category-detail .analysis-category .line {
+  gap: 6px;
+}
+.savings-total {
+  margin: 6px 0 12px;
+}
+.savings-total b {
+  font-size: 20px;
+}
+.savings-card h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-balance {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.savings-card .line > small {
+  text-align: right;
+  max-width: 45%;
+  font-size: 11px;
+}
+.savings-card .actions {
+  margin: 3px 0;
+  gap: 3px;
+}
+.savings-history summary {
+  padding: 9px 0 4px;
+  min-height: 36px;
+  font-size: 12px;
+}
+.saving-entry {
+  border-top: 1px solid var(--border);
+  padding: 9px 0;
+}
+.saving-entry b {
+  font-size: 13px;
+}
+.budget-dialog {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 16px;
+  padding: 14px;
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+}
+.budget-dialog::backdrop {
+  background: #0008;
+}
+.budget-dialog h2 {
+  font-size: 18px;
+}
+.budget-dialog .actions {
+  position: sticky;
+  bottom: -14px;
+  background: var(--surface);
+  padding: 10px 0;
+}
+.budget-dialog .actions > button:first-child {
+  flex: 1;
+}
+.budget-dialog .twocol {
+  align-items: flex-end;
+  gap: 8px;
+}
+@media (max-width: 350px) {
+  .budget-dialog .twocol {
+    display: block;
+  }
+  .account-balance {
+    font-size: 20px;
+  }
+}
+.savings-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 6px;
+}
+.savings-card > .line,
+.savings-card > small {
+  grid-column: 1 / -1;
+}
+.savings-card > .line:first-child .tiny {
+  min-height: 36px;
+}
+.savings-card > .actions {
+  grid-column: 1;
+}
+.savings-card > .savings-history {
+  grid-column: 2;
+  align-self: center;
+}
+.savings-card > .savings-history[open] {
+  grid-column: 1 / -1;
+}
+.savings-history summary {
+  white-space: nowrap;
+}

@@ -587,3 +587,117 @@ describe("Несколько накопительных счетов", () => {
     ).toBe("50025");
   });
 });
+
+describe("Проценты по накоплениям", () => {
+  async function settings(
+    rate: string,
+    frequency = "monthly",
+    start = "2025-01-01",
+    version = 0,
+  ) {
+    await value(
+      "select public.save_savings_account($1,$2,'Вклад',$3,$4,$5,$6) as v",
+      [family, ACCOUNT, version, rate, start, frequency],
+    );
+  }
+  async function credits(until: string) {
+    return (
+      await db.query<{ amount: string; occurred_on: string }>(
+        "select amount::text,occurred_on::text from public.savings_calculated_entries($1,$2) where kind='interest' order by occurred_on",
+        [ACCOUNT, until],
+      )
+    ).rows;
+  }
+  it("начисляет в конце месяца, капитализирует и совпадает с локальным расчётом", async () => {
+    await settings("36.5");
+    await onAccount(SAVING, "opening", "100000", ACCOUNT, 0, "2025-01-01");
+    expect(await credits("2025-01-30")).toEqual([]);
+    const rows = await credits("2025-02-28");
+    expect(rows.map((r) => Number(r.amount))).toEqual([3100, 2886.8]);
+    const s = await snap("2025-02-01");
+    expect(s.savings?.accounts?.find((a) => a.id === ACCOUNT)).toMatchObject({
+      balance_cents: "10598680",
+      interest_cents: "288680",
+      transfer_cents: "0",
+    });
+    expect(s.summary).toEqual([]);
+    const { calculatedSavings } = await import("../src/lib/interest");
+    const entries = calculatedSavings(
+      [
+        {
+          id: SAVING,
+          account_id: ACCOUNT,
+          household_id: family,
+          kind: "opening",
+          amount: "100000",
+          occurred_on: "2025-01-01",
+          comment: null,
+          user_id: A,
+          updated_by: A,
+          version: 1,
+        },
+      ],
+      {
+        id: ACCOUNT,
+        annual_rate: 36.5,
+        interest_start: "2025-01-01",
+        interest_frequency: "monthly",
+      },
+      "2025-02-28",
+    );
+    expect(
+      entries.filter((e) => e.kind === "interest").map((e) => Number(e.amount)),
+    ).toEqual(rows.map((r) => Number(r.amount)));
+    expect((await snap("2025-02-01")).revision).toBe(s.revision);
+    expect(await credits("2025-02-28")).toEqual(rows);
+  });
+  it("учитывает остаток каждого дня, исправления и високосный год", async () => {
+    await settings("36.5");
+    await onAccount(SAVING, "opening", "100000", ACCOUNT, 0, "2025-01-01");
+    await onAccount(WITHDRAW, "withdrawal", "50000", ACCOUNT, 0, "2025-01-16");
+    await onAccount(RULE, "deposit", "10000", ACCOUNT, 0, "2025-01-21");
+    expect(Number((await credits("2025-01-31"))[0].amount)).toBe(2410);
+    await onAccount(RULE, "deposit", "20000", ACCOUNT, 1, "2025-01-21");
+    expect(Number((await credits("2025-01-31"))[0].amount)).toBe(2520);
+    await settings("36.6", "daily", "2024-02-01", 1);
+    // Move the existing opening rather than create a second opening balance.
+    await onAccount(SAVING, "opening", "100000", ACCOUNT, 1, "2024-02-01");
+    expect((await credits("2024-02-02")).map((r) => Number(r.amount))).toEqual([
+      100, 100.1,
+    ]);
+  });
+  it("позволяет снять начисленные проценты, защищает от отрицательного остатка при смене ставки", async () => {
+    await settings("36.5");
+    await onAccount(SAVING, "opening", "100000", ACCOUNT, 0, "2025-01-01");
+    await onAccount(WITHDRAW, "withdrawal", "103100", ACCOUNT, 0, "2025-02-01");
+    expect(
+      (await snap("2025-02-01")).savings?.accounts?.find(
+        (a) => a.id === ACCOUNT,
+      )?.balance_cents,
+    ).toBe("0");
+    await expect(settings("0", "monthly", "2025-01-01", 1)).rejects.toThrow(
+      "недостаточно",
+    );
+    await account("Новое название", 1);
+    expect(
+      (await snap("2025-02-01")).savings?.accounts?.find(
+        (a) => a.id === ACCOUNT,
+      )?.annual_rate,
+    ).toBe(36.5);
+  });
+  it("не начисляет за текущий день или будущее, закрывает чужие счета и проверяет ставку", async () => {
+    const day = await value<string>(
+      "select (now() at time zone 'Asia/Yekaterinburg')::date::text as v",
+    );
+    await settings("36.5", "daily", day);
+    await onAccount(SAVING, "opening", "100000", ACCOUNT, 0, day);
+    expect(await credits("9998-12-31")).toEqual([]);
+    await expect(settings("-2", "daily", day, 1)).rejects.toThrow(
+      "Проверьте ставку",
+    );
+    await as(C);
+    expect(await credits("9998-12-31")).toEqual([]);
+    await db.exec("reset role; set role anon");
+    await expect(credits("2025-01-31")).rejects.toThrow("permission denied");
+  });
+});

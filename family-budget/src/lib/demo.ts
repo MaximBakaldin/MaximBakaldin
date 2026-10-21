@@ -1,3 +1,8 @@
+import {
+  calculatedSavings,
+  validateInterest,
+  type InterestSettings,
+} from "./interest";
 import type {
   Budget,
   Family,
@@ -22,12 +27,12 @@ type Store = {
   categories?: Category[];
   recurring?: (RecurringDraft & { month: string })[];
   savings?: SavingsEntry[];
-  accounts?: {
+  accounts?: ({
     id: string;
     name: string;
     version: number;
     is_default: boolean;
-  }[];
+  } & InterestSettings)[];
 };
 export const DEMO_USER = "local-user";
 const family: Family = {
@@ -88,6 +93,15 @@ function write(store: Store) {
 }
 export function localSnapshot(month: string): Snapshot {
   const s = read();
+  const rawSavings = s.savings ?? [];
+  const end = new Date(
+    Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0),
+  )
+    .toISOString()
+    .slice(0, 10);
+  s.savings = (s.accounts ?? []).flatMap((a) =>
+    calculatedSavings(rawSavings, a, end),
+  );
   return {
     family: s.family ?? family,
     revision: s.revision,
@@ -121,6 +135,18 @@ export function localSnapshot(month: string): Snapshot {
     savings: {
       accounts: (s.accounts ?? []).map((a) => ({
         ...a,
+        interest_cents: String(
+          total(
+            (s.savings ?? [])
+              .filter(
+                (e) =>
+                  e.account_id === a.id &&
+                  e.kind === "interest" &&
+                  e.occurred_on.startsWith(month),
+              )
+              .map((e) => parseMoney(e.amount)),
+          ),
+        ),
         balance_cents: String(
           total(
             (s.savings ?? [])
@@ -141,7 +167,8 @@ export function localSnapshot(month: string): Snapshot {
                 (e) =>
                   e.account_id === a.id &&
                   e.occurred_on.startsWith(month) &&
-                  e.kind !== "opening",
+                  e.kind !== "opening" &&
+                  e.kind !== "interest",
               )
               .map(
                 (e) =>
@@ -149,7 +176,7 @@ export function localSnapshot(month: string): Snapshot {
               ),
           ),
         ),
-        has_opening: (s.savings ?? []).some(
+        has_opening: rawSavings.some(
           (e) => e.account_id === a.id && e.kind === "opening",
         ),
       })),
@@ -166,14 +193,17 @@ export function localSnapshot(month: string): Snapshot {
         total(
           (s.savings ?? [])
             .filter(
-              (e) => e.occurred_on.startsWith(month) && e.kind !== "opening",
+              (e) =>
+                e.occurred_on.startsWith(month) &&
+                e.kind !== "opening" &&
+                e.kind !== "interest",
             )
             .map(
               (e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
             ),
         ),
       ),
-      has_opening: (s.savings ?? []).some((e) => e.kind === "opening"),
+      has_opening: rawSavings.some((e) => e.kind === "opening"),
       entries: (s.savings ?? [])
         .filter((e) => e.occurred_on.startsWith(month))
         .sort((a, b) => b.occurred_on.localeCompare(a.occurred_on)),
@@ -444,7 +474,7 @@ export function localSavings(d: SavingsDraft, remove = false) {
     });
   }
   for (const a of s.accounts!) {
-    const entries = next.filter((e) => e.account_id === a.id);
+    const entries = calculatedSavings(next, a, "9998-12-31");
     const days = Array.from(new Set(entries.map((e) => e.occurred_on))).sort();
     let balance = 0;
     for (const date of days) {
@@ -465,7 +495,12 @@ export function localSavings(d: SavingsDraft, remove = false) {
   write(s);
 }
 
-export function localSavingsAccount(id: string, name: string, version: number) {
+export function localSavingsAccount(
+  id: string,
+  name: string,
+  version: number,
+  settings?: InterestSettings,
+) {
   const s = read();
   const old = s.accounts!.find((a) => a.id === id);
   if ((old?.version ?? 0) !== version) throw new Error("Счёт уже изменён");
@@ -477,6 +512,23 @@ export function localSavingsAccount(id: string, name: string, version: number) {
     )
   )
     throw new Error("Счёт с таким названием уже есть");
+  const interest = settings ?? old ?? {};
+  validateInterest(interest);
+  const projected = calculatedSavings(
+    s.savings ?? [],
+    { ...interest, id },
+    "9998-12-31",
+  );
+  let balance = 0;
+  for (const day of [...new Set(projected.map((e) => e.occurred_on))].sort()) {
+    balance += total(
+      projected
+        .filter((e) => e.occurred_on === day)
+        .map((e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1)),
+    );
+    if (balance < 0)
+      throw new Error("Изменение процентов оставит отрицательный остаток");
+  }
   s.accounts = [
     ...s.accounts!.filter((a) => a.id !== id),
     {
@@ -484,6 +536,9 @@ export function localSavingsAccount(id: string, name: string, version: number) {
       name: name.trim(),
       version: version + 1,
       is_default: old?.is_default ?? false,
+      annual_rate: interest.annual_rate ?? null,
+      interest_start: interest.interest_start ?? null,
+      interest_frequency: interest.interest_frequency ?? "monthly",
     },
   ];
   write(s);

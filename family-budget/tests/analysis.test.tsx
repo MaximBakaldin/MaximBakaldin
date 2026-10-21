@@ -82,17 +82,19 @@ it("анализ показывает месяцы, категории обои�
   }));
   const onOperations = vi.fn();
   const props = { points, cats, loading: false, error: "", onOperations };
-  const { rerender } = render(<Analysis {...props} view="overview" />);
+  render(<Analysis {...props} />);
   const u = userEvent.setup();
   await u.click(screen.getByText("Суммы по месяцам"));
   expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(7);
-  await u.click(screen.getByRole("button", { name: "Посмотреть операции →" }));
-  expect(onOperations).toHaveBeenLastCalledWith("food");
-  rerender(<Analysis {...props} view="categories" />);
-  await u.selectOptions(screen.getByLabelText("Тип анализа"), "income");
-  await u.selectOptions(screen.getByLabelText("Категория анализа"), "salary");
-  await u.click(screen.getByRole("button", { name: "Операции →" }));
-  expect(onOperations).toHaveBeenLastCalledWith("salary");
+  await u.click(screen.getByRole("button", { name: /Расходы: сентябрь/ }));
+  expect(
+    screen.getByRole("region", { name: /Категории за сентябрь/ }),
+  ).toBeTruthy();
+  await u.click(screen.getByRole("button", { name: "Операции: Еда" }));
+  expect(onOperations).toHaveBeenLastCalledWith("food", "2026-09");
+  await u.click(screen.getByRole("button", { name: /Доходы: август/ }));
+  await u.click(screen.getByRole("button", { name: "Операции: Зарплата" }));
+  expect(onOperations).toHaveBeenLastCalledWith("salary", "2026-08");
   expect(changeFrom(0, 100)).toEqual({ difference: 100, percent: null });
   expect(changeFrom(100, 150)).toEqual({ difference: 50, percent: 50 });
 });

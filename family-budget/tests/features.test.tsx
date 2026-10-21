@@ -103,17 +103,17 @@ describe("Новые сценарии", () => {
       screen.getByRole("button", { name: "Накопления", exact: true }),
     );
     await u.click(
-      screen.getByRole("button", { name: "Задать начальный остаток" }),
+      screen.getByRole("button", { name: "Начальный остаток: Накопления" }),
     );
     await u.type(screen.getByLabelText("Сумма перевода, ₽"), "1000");
     await u.click(screen.getByRole("button", { name: "Сохранить перевод" }));
     await screen.findByText("Накопления обновлены");
     await u.click(
-      screen.getByRole("button", { name: "Пополнить", exact: true }),
+      screen.getByRole("button", { name: "Пополнить Накопления", exact: true }),
     );
     await u.type(screen.getByLabelText("Сумма перевода, ₽"), "250,25");
     await u.click(screen.getByRole("button", { name: "Сохранить перевод" }));
-    await screen.findByText("Пополнение");
+    await screen.findByText("Накопления обновлены");
     expect(localSnapshot(currentMonth()).savings).toMatchObject({
       balance_cents: "125025",
       transfer_cents: "25025",
@@ -121,12 +121,18 @@ describe("Новые сценарии", () => {
     expect(
       localSnapshot(currentMonth()).summary.every((s) => s.cents === "0"),
     ).toBe(true);
-    await u.click(screen.getByRole("button", { name: "Снять", exact: true }));
+    await u.click(
+      screen.getByRole("button", {
+        name: "Снять со счёта Накопления",
+        exact: true,
+      }),
+    );
     await u.type(screen.getByLabelText("Сумма перевода, ₽"), "2000");
     await u.click(screen.getByRole("button", { name: "Сохранить перевод" }));
-    expect((await screen.findByRole("alert")).textContent).toContain(
-      "недостаточно",
-    );
+    expect(
+      (await within(screen.getByRole("dialog")).findByRole("alert"))
+        .textContent,
+    ).toContain("недостаточно");
     expect(localSnapshot(currentMonth()).savings?.balance_cents).toBe("125025");
   });
   it("редактирует расход из журнала с пересчётом итогов", async () => {

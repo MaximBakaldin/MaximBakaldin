@@ -1,5 +1,5 @@
 import { Help } from "./Help";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   Category,
   Recurring,
@@ -31,8 +31,19 @@ export function RecurringPayments({
 }) {
   const [draft, setDraft] = useState<RecurringDraft | null>(null);
   const [pay, setPay] = useState<Recurring | null>(null);
+  const [payError, setPayError] = useState("");
   const [date, setDate] = useState(today());
   const [inactive, setInactive] = useState(false);
+  const paymentForm = useRef<HTMLFormElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!pay) return;
+    paymentForm.current?.scrollIntoView?.({
+      block: "nearest",
+      behavior: "instant",
+    });
+    confirmButton.current?.focus({ preventScroll: true });
+  }, [pay]);
   const visible = items.filter((r) => r.active || r.payment);
   const unpaid = visible.filter((r) => !r.payment);
   const paid = visible.filter((r) => r.payment);
@@ -40,6 +51,7 @@ export function RecurringPayments({
   const sum = total(visible.map(amount)),
     done = total(paid.map(amount));
   function startPay(r: Recurring) {
+    setPayError("");
     setPay(r);
     setDate(today().startsWith(month) ? today() : dueDate(month, r.due_day));
   }
@@ -174,43 +186,6 @@ export function RecurringPayments({
           </fieldset>
         </form>
       )}
-      {pay && (
-        <form
-          className="editor"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(async () => {
-              await payRecurring(family, month, pay, date);
-            }, "Оплата учтена в расходах").then((ok) => {
-              if (ok) setPay(null);
-            });
-          }}
-        >
-          <h3>Оплата: {pay.name}</h3>
-          <b>{currency(parseMoney(pay.amount))}</b>
-          <label>
-            Дата оплаты
-            <input
-              required
-              type="date"
-              min={month + "-01"}
-              max={dueDate(month, 31)}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </label>
-          <div className="actions">
-            <button disabled={busy}>Подтвердить оплату</button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => setPay(null)}
-            >
-              Отмена
-            </button>
-          </div>
-        </form>
-      )}
       {(
         [
           ["Ещё оплатить", unpaid],
@@ -292,6 +267,60 @@ export function RecurringPayments({
                     Отключить
                   </button>
                 </div>
+                {pay?.id === r.id && !r.payment && (
+                  <form
+                    className="editor inline-payment"
+                    ref={paymentForm}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void run(async () => {
+                        try {
+                          await payRecurring(family, month, pay, date);
+                        } catch (e) {
+                          setPayError(
+                            e instanceof Error
+                              ? e.message
+                              : "Не удалось оплатить",
+                          );
+                          throw e;
+                        }
+                      }, "Оплата учтена в расходах").then((ok) => {
+                        if (ok) setPay(null);
+                      });
+                    }}
+                  >
+                    <h3>Оплата: {pay.name}</h3>
+                    {payError && (
+                      <p className="error" role="alert">
+                        {payError}
+                      </p>
+                    )}
+                    <b>{currency(parseMoney(pay.amount))}</b>
+                    <label>
+                      Дата оплаты
+                      <input
+                        required
+                        type="date"
+                        min={month + "-01"}
+                        max={dueDate(month, 31)}
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                      />
+                    </label>
+                    <div className="actions">
+                      <button ref={confirmButton} disabled={busy}>
+                        Подтвердить оплату
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => setPay(null)}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </form>
+                )}
               </article>
             ))}
         </div>

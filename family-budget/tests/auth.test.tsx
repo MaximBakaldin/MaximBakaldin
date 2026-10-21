@@ -46,17 +46,19 @@ const snapshot: Snapshot = {
   categories: [],
   members: [],
   budgets: [],
-  summary: [],
+  summary: [
+    { category_id: "private-category", kind: "expense", cents: "12345" },
+  ],
   revision: 0,
 };
 describe("Изоляция сессий", () => {
   it("немедленно убирает данные A при переходе к B, даже при ошибке загрузки B", async () => {
     mock.load.mockResolvedValue(snapshot);
     render(<App />);
-    await screen.findByText("Семья А");
+    await screen.findAllByText(/123,45/);
     mock.load.mockRejectedValue(new Error("Проверочная ошибка сети"));
     await act(async () => mock.callback("SIGNED_IN", { user: { id: "B" } }));
-    expect(screen.queryByText("Семья А")).toBeNull();
+    expect(screen.queryAllByText(/123,45/)).toHaveLength(0);
     expect(await screen.findByText(/Проверочная ошибка сети/)).toBeTruthy();
   });
   it("поздний ответ A не возвращает его данные после входа B", async () => {
@@ -73,7 +75,7 @@ describe("Изоляция сессий", () => {
     await act(async () => mock.callback("SIGNED_IN", { user: { id: "B" } }));
     await screen.findByText("Ваше общее пространство");
     await act(async () => resolveA(snapshot));
-    expect(screen.queryByText("Семья А")).toBeNull();
+    expect(screen.queryAllByText(/123,45/)).toHaveLength(0);
     expect(screen.getByText("Ваше общее пространство")).toBeTruthy();
   });
 });
