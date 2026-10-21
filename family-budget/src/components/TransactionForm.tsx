@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Category, Draft } from "../types";
 import { parseMoney } from "../lib/money";
+import { CategorySelect } from "./CategorySelect";
 import { validDate } from "../lib/dates";
 export function TransactionForm({
   initial,
@@ -109,24 +110,12 @@ export function TransactionForm({
               />
             </label>
           </div>
-          <span className="fieldlabel" id="category-label">
-            Категория
-          </span>
-          <div className="chips" role="group" aria-labelledby="category-label">
-            {cats
-              .filter((c) => c.kind === draft.kind)
-              .map((c) => (
-                <button
-                  type="button"
-                  key={c.id}
-                  aria-pressed={draft.category_id === c.id}
-                  className={draft.category_id === c.id ? "active" : ""}
-                  onClick={() => change({ category_id: c.id })}
-                >
-                  {c.name}
-                </button>
-              ))}
-          </div>
+          <CategorySelect
+            key={draft.kind}
+            cats={cats.filter((c) => c.kind === draft.kind)}
+            value={draft.category_id}
+            onChange={(category_id) => change({ category_id })}
+          />
           <button
             type="button"
             className="tiny comment-toggle"

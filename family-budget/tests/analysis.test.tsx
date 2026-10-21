@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import {
-  cleanup,
-  render,
-  screen,
-  fireEvent,
-  within,
-} from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Help } from "../src/components/Help";
 import { Bullet, bulletScale } from "../src/components/Bullet";
@@ -84,15 +78,22 @@ it("анализ показывает месяцы, категории обои�
   const props = { points, cats, loading: false, error: "", onOperations };
   render(<Analysis {...props} />);
   const u = userEvent.setup();
-  await u.click(screen.getByText("Суммы по месяцам"));
-  expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(7);
-  await u.click(screen.getByRole("button", { name: /Расходы: сентябрь/ }));
+  expect(screen.queryByRole("table")).toBeNull();
+  expect(screen.queryByText("Суммы по месяцам")).toBeNull();
+  expect(
+    screen.getByRole("group", { name: "Доходы и расходы по месяцам" }),
+  ).toBeTruthy();
+  await u.click(screen.getByRole("button", { name: /^сентябрь/ }));
   expect(
     screen.getByRole("region", { name: /Категории за сентябрь/ }),
   ).toBeTruthy();
   await u.click(screen.getByRole("button", { name: "Операции: Еда" }));
   expect(onOperations).toHaveBeenLastCalledWith("food", "2026-09");
-  await u.click(screen.getByRole("button", { name: /Доходы: август/ }));
+  await u.click(screen.getByRole("button", { name: /^август/ }));
+  await u.click(screen.getByRole("button", { name: "Доходы", exact: true }));
+  expect(
+    screen.getByRole("img", { name: "Зарплата: 100% от доходов" }),
+  ).toBeTruthy();
   await u.click(screen.getByRole("button", { name: "Операции: Зарплата" }));
   expect(onOperations).toHaveBeenLastCalledWith("salary", "2026-08");
   expect(changeFrom(0, 100)).toEqual({ difference: 100, percent: null });

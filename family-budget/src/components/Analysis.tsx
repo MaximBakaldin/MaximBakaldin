@@ -61,77 +61,53 @@ export function Analysis({
       <div className="section-heading">
         <h2>Динамика за 6 месяцев</h2>
         <Help label="Динамика по месяцам">
-          Нажмите месяц на любом графике: детализация ниже покажет его
-          категории. У графиков общая шкала. Текущий месяц может быть
+          Нажмите месяц на графике: детализация ниже покажет его категории.
+          Доходы и расходы показаны в одной шкале. Текущий месяц может быть
           незавершённым. Переводы накоплений не входят в доходы и расходы.
         </Help>
       </div>
-      {(["expense", "income"] as const).map((type) => {
-        const name = type === "expense" ? "Расходы" : "Доходы";
-        return (
-          <article className="trend-chart-card" key={type}>
-            <div className="line">
-              <h3>{name}</h3>
-              <b>{currency(type === "expense" ? point.spent : point.earned)}</b>
-            </div>
-            <div
-              className="interactive-month-chart"
-              role="group"
-              aria-label={`${name} по месяцам`}
+      <article className="trend-chart-card combined-trend">
+        <small className="selected-month">{monthLabel(point.month)}</small>
+        <div className="trend-legend">
+          <span>
+            <i className="expense-bar" />
+            Расходы <b>{currency(point.spent)}</b>
+          </span>
+          <span>
+            <i className="income-bar" />
+            Доходы <b>{currency(point.earned)}</b>
+          </span>
+        </div>
+        <div
+          className="interactive-month-chart"
+          role="group"
+          aria-label="Доходы и расходы по месяцам"
+        >
+          {points.map((p) => (
+            <button
+              type="button"
+              className={`chart-month ${p.month === point.month ? "selected" : ""}`}
+              key={p.month}
+              aria-pressed={p.month === point.month}
+              aria-label={`${monthLabel(p.month)}: расходы ${currency(p.spent)}, доходы ${currency(p.earned)}`}
+              onClick={() => setSelected(p.month)}
             >
-              {points.map((p) => {
-                const amount = type === "expense" ? p.spent : p.earned;
-                return (
-                  <button
-                    type="button"
-                    className={`chart-month ${p.month === point.month ? "selected" : ""}`}
-                    key={p.month}
-                    aria-pressed={p.month === point.month}
-                    aria-label={`${name}: ${monthLabel(p.month)}, ${currency(amount)}`}
-                    onClick={() => {
-                      setSelected(p.month);
-                      setKind(type);
-                    }}
-                  >
-                    <span className="chart-bar-space">
-                      <span
-                        className={
-                          type === "expense" ? "expense-bar" : "income-bar"
-                        }
-                        style={{ height: `${(amount / max) * 100}%` }}
-                      />
-                    </span>
-                    <span>{shortMonth(p.month)}</span>
-                    <small>{p.month.slice(0, 4)}</small>
-                  </button>
-                );
-              })}
-            </div>
-          </article>
-        );
-      })}
-      <details className="chart-data">
-        <summary>Суммы по месяцам</summary>
-        <table>
-          <caption className="sr-only">Данные графиков</caption>
-          <thead>
-            <tr>
-              <th>Месяц</th>
-              <th>Расходы</th>
-              <th>Доходы</th>
-            </tr>
-          </thead>
-          <tbody>
-            {points.map((p) => (
-              <tr key={p.month}>
-                <th scope="row">{monthLabel(p.month)}</th>
-                <td>{currency(p.spent)}</td>
-                <td>{currency(p.earned)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+              <span className="chart-bar-space" aria-hidden="true">
+                <span
+                  className="expense-bar"
+                  style={{ height: `${(p.spent / max) * 100}%` }}
+                />
+                <span
+                  className="income-bar"
+                  style={{ height: `${(p.earned / max) * 100}%` }}
+                />
+              </span>
+              <span>{shortMonth(p.month)}</span>
+              <small>{p.month.slice(0, 4)}</small>
+            </button>
+          ))}
+        </div>
+      </article>
       <section
         className="category-detail"
         aria-label={`Категории за ${monthLabel(point.month)}`}
@@ -167,6 +143,16 @@ export function Analysis({
                   {r.category.archived ? " · удалена" : ""}
                 </b>
                 <b>{currency(r.amount)}</b>
+              </div>
+              <div
+                className="category-share"
+                role="img"
+                aria-label={`${r.category.name}: ${sum ? Math.round((r.amount / sum) * 100) : 0}% от ${kind === "expense" ? "расходов" : "доходов"}`}
+              >
+                <span
+                  className={kind === "expense" ? "expense-bar" : "income-bar"}
+                  style={{ width: `${sum ? (r.amount / sum) * 100 : 0}%` }}
+                />
               </div>
               <div className="line">
                 <small>

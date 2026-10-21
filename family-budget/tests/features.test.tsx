@@ -142,7 +142,8 @@ describe("Новые сценарии", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "120");
-    await u.click(screen.getByRole("button", { name: "Продукты" }));
+    await u.click(screen.getByRole("combobox", { name: "Категория" }));
+    await u.click(screen.getByRole("option", { name: "Продукты" }));
     await u.click(
       screen.getByRole("button", { name: "Сохранить", exact: true }),
     );

@@ -15,7 +15,8 @@ describe("Локальный бюджет", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "100,10");
-    await u.click(screen.getByRole("button", { name: "Продукты" }));
+    await u.click(screen.getByRole("combobox", { name: "Категория" }));
+    await u.click(screen.getByRole("option", { name: "Продукты" }));
     await u.click(
       screen.getByRole("button", { name: "+ Комментарий", exact: true }),
     );
@@ -50,7 +51,8 @@ describe("Локальный бюджет", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "1.001");
-    await u.click(screen.getByRole("button", { name: "Продукты" }));
+    await u.click(screen.getByRole("combobox", { name: "Категория" }));
+    await u.click(screen.getByRole("option", { name: "Продукты" }));
     await u.click(
       screen.getByRole("button", { name: "Сохранить", exact: true }),
     );

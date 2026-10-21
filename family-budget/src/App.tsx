@@ -1057,15 +1057,15 @@ function Workspace({ user }: { user: string }) {
             />
           )}
           {budgetView === "limits" && (
-            <>
+            <div className="budget-limits">
               <h2>Лимиты на месяц</h2>
-              <article className="hero">
+              <article className="hero limits-summary">
                 <small>Бюджет расходов</small>
                 <h2>{currency(plan)}</h2>
                 <small>Факт: {currency(spent)}</small>
               </article>
               <button
-                className="secondary"
+                className="secondary copy-budget"
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
@@ -1109,7 +1109,7 @@ function Workspace({ user }: { user: string }) {
                   }
                 />
               ))}
-            </>
+            </div>
           )}
         </section>
       )}
@@ -1244,7 +1244,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.5.0</small>
+            <small>Версия 0.6.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

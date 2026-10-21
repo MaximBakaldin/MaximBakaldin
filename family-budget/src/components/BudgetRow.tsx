@@ -36,7 +36,7 @@ export function BudgetRow({
     }
   }
   return (
-    <article>
+    <article className="budget-row">
       <div className="line">
         <b>{name}</b>
         <small>Факт: {currency(spent)}</small>

@@ -1578,3 +1578,260 @@ nav button {
 .savings-history summary {
   white-space: nowrap;
 }
+
+/* Analysis and budget: compact summaries, shared scales, short controls. */
+.combined-trend .interactive-month-chart {
+  height: 158px;
+}
+.combined-trend .chart-bar-space {
+  height: 112px;
+  gap: 3px;
+}
+.combined-trend .chart-bar-space > span {
+  width: 32%;
+  min-height: 0;
+}
+.trend-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 7px 0 12px;
+  font-size: 11px;
+}
+.trend-legend b {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.trend-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+}
+.category-share {
+  height: 10px;
+  margin: 8px 0 4px;
+  background: var(--track);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.category-share > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.category-detail .analysis-category {
+  padding: 9px 10px;
+  margin: 6px 0;
+}
+.category-detail .analysis-category .tiny {
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.budget-limits h2,
+.recurring-payments h2 {
+  font-size: 16px;
+  margin: 6px 0;
+}
+.budget-limits .limits-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 9px 11px;
+  margin: 7px 0;
+  border-radius: 12px;
+}
+.limits-summary h2 {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  margin: 0;
+  font-size: 21px;
+}
+.limits-summary small {
+  font-size: 11px;
+}
+.budget-limits .copy-budget {
+  min-height: 32px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.budget-limits > .hint {
+  font-size: 10px;
+  margin: 4px 0 8px;
+}
+.budget-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 164px);
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+  padding: 8px 9px;
+  border-radius: 12px;
+}
+.budget-row > .line {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.budget-row small {
+  margin-top: 3px;
+  font-size: 10px;
+}
+.budget-row .budgetinput {
+  gap: 5px;
+  margin: 0;
+}
+.budget-row .budgetinput input {
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 5px 6px;
+}
+.budget-row .budgetinput button {
+  min-height: 34px;
+  padding: 5px 7px;
+  font-size: 11px;
+}
+.budget-row > .notice,
+.budget-row > .error {
+  grid-column: 1 / -1;
+}
+.recurring-payments .section-heading {
+  gap: 6px;
+}
+.recurring-payments .section-heading > button {
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 11px;
+}
+.recurring-payments .compact-hero {
+  padding: 9px 11px;
+  margin: 6px 0 10px;
+  border-radius: 12px;
+}
+.recurring-payments .compact-hero > small {
+  display: inline;
+  font-size: 11px;
+}
+.recurring-payments .compact-hero h2 {
+  float: right;
+  font-size: 18px;
+  margin: 0;
+}
+.recurring-payments .compact-hero .bar {
+  clear: both;
+  height: 5px;
+  margin: 8px 0;
+}
+.recurring-payments .compact-hero .twocol > div {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.recurring-payments .compact-hero .twocol {
+  gap: 6px;
+}
+.recurring-payments .compact-hero .twocol small {
+  font-size: 10px;
+}
+.recurring-payments .compact-hero .twocol b {
+  font-size: 12px;
+  margin: 0;
+}
+.recurring-payments > div > h3 {
+  font-size: 13px;
+  margin: 10px 0 5px;
+}
+.recurring-payments .payment-row {
+  padding: 8px 10px;
+  margin: 5px 0;
+  border-radius: 12px;
+}
+.payment-row .line b {
+  font-size: 13px;
+}
+.payment-row .line small {
+  font-size: 10px;
+  margin-top: 3px;
+}
+.recurring-payments .payment-row > .actions {
+  gap: 4px;
+  margin: 7px 0 0;
+}
+.recurring-payments .payment-row > .actions button {
+  min-height: 32px;
+  padding: 5px 7px;
+  font-size: 11px;
+}
+.category-select {
+  position: relative;
+  margin: 10px 0 4px;
+}
+.category-select label {
+  margin: 0 0 4px;
+}
+.category-select-control {
+  position: relative;
+}
+.category-select-control input {
+  margin: 0;
+  padding-right: 40px;
+  height: 44px;
+}
+.category-select-toggle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 40px;
+  height: 44px;
+  padding: 4px;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 22px;
+}
+.category-options {
+  position: absolute;
+  z-index: 12;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: min(200px, 28dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px #0002;
+  padding: 4px;
+}
+.category-options [role="option"] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 40px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.category-options [data-active="true"],
+.category-options [role="option"]:hover {
+  background: var(--soft);
+}
+.category-options [aria-selected="true"] {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+.category-no-match {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}

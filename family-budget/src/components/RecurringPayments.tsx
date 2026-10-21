@@ -56,7 +56,7 @@ export function RecurringPayments({
     setDate(today().startsWith(month) ? today() : dueDate(month, r.due_day));
   }
   return (
-    <section>
+    <section className="recurring-payments">
       <div className="section-heading">
         <h2>
           Обязательные платежи{" "}
@@ -233,7 +233,7 @@ export function RecurringPayments({
                       } else startPay(r);
                     }}
                   >
-                    {r.payment ? "✓ Оплачено · отменить" : "Отметить оплату"}
+                    {r.payment ? "✓ Оплачено · отменить" : "Оплатить"}
                   </button>
                   {r.payment && (
                     <button className="tiny" onClick={() => onEdit(r.payment!)}>
@@ -245,7 +245,7 @@ export function RecurringPayments({
                     disabled={busy}
                     onClick={() => setDraft(r)}
                   >
-                    Шаблон
+                    Редактировать
                   </button>
                   <button
                     className="tiny danger"
@@ -253,7 +253,7 @@ export function RecurringPayments({
                     onClick={() => {
                       if (
                         confirm(
-                          `Отключить «${r.name}» с ${month}? Прошлые месяцы и оплаченные операции сохранятся.`,
+                          `Удалить «${r.name}» из обязательных с ${month}? Прошлые месяцы и оплаченные операции сохранятся.`,
                         )
                       )
                         void run(async () => {
@@ -261,10 +261,10 @@ export function RecurringPayments({
                             ...r,
                             active: false,
                           });
-                        }, "Повторение отключено");
+                        }, "Платёж удалён из обязательных");
                     }}
                   >
-                    Отключить
+                    Удалить
                   </button>
                 </div>
                 {pay?.id === r.id && !r.payment && (
@@ -331,7 +331,7 @@ export function RecurringPayments({
         </p>
       )}
       <button className="tiny" onClick={() => setInactive(!inactive)}>
-        {inactive ? "Скрыть отключённые" : "Отключённые платежи"}
+        {inactive ? "Скрыть удалённые" : "Удалённые платежи"}
       </button>
       {inactive &&
         items
