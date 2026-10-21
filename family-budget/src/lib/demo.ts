@@ -22,6 +22,12 @@ type Store = {
   categories?: Category[];
   recurring?: (RecurringDraft & { month: string })[];
   savings?: SavingsEntry[];
+  accounts?: {
+    id: string;
+    name: string;
+    version: number;
+    is_default: boolean;
+  }[];
 };
 export const DEMO_USER = "local-user";
 const family: Family = {
@@ -47,9 +53,20 @@ const categories: Category[] = names.map((name, i) => ({
   kind: i < 7 ? "expense" : "income",
   essential: i < 5,
 }));
+function normalizeAccounts(s: Store): Store {
+  s.accounts ??= [
+    { id: "local-savings", name: "Накопления", version: 1, is_default: true },
+  ];
+  s.savings = (s.savings ?? []).map((e) => ({
+    ...e,
+    account_id: e.account_id ?? s.accounts![0].id,
+  }));
+  return s;
+}
 function read(): Store {
   const raw = localStorage.getItem(KEY);
-  if (!raw) return { transactions: [], budgets: [], revision: 0 };
+  if (!raw)
+    return normalizeAccounts({ transactions: [], budgets: [], revision: 0 });
   try {
     const data: Store = JSON.parse(raw);
     if (
@@ -58,7 +75,7 @@ function read(): Store {
       !Number.isSafeInteger(data.revision)
     )
       throw new Error();
-    return data;
+    return normalizeAccounts(data);
   } catch {
     throw new Error(
       "Локальные данные повреждены. Сохраните содержимое браузера перед восстановлением",
@@ -102,6 +119,40 @@ export function localSnapshot(month: string): Snapshot {
       ];
     }),
     savings: {
+      accounts: (s.accounts ?? []).map((a) => ({
+        ...a,
+        balance_cents: String(
+          total(
+            (s.savings ?? [])
+              .filter(
+                (e) =>
+                  e.account_id === a.id && e.occurred_on.slice(0, 7) <= month,
+              )
+              .map(
+                (e) =>
+                  parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
+              ),
+          ),
+        ),
+        transfer_cents: String(
+          total(
+            (s.savings ?? [])
+              .filter(
+                (e) =>
+                  e.account_id === a.id &&
+                  e.occurred_on.startsWith(month) &&
+                  e.kind !== "opening",
+              )
+              .map(
+                (e) =>
+                  parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
+              ),
+          ),
+        ),
+        has_opening: (s.savings ?? []).some(
+          (e) => e.account_id === a.id && e.kind === "opening",
+        ),
+      })),
       balance_cents: String(
         total(
           (s.savings ?? [])
@@ -372,12 +423,19 @@ export function localSavings(d: SavingsDraft, remove = false) {
   const list = s.savings ?? [];
   const old = list.find((e) => e.id === d.id);
   if ((old?.version ?? 0) !== d.version) throw new Error("Перевод уже изменён");
+  const account = d.account_id ?? old?.account_id ?? s.accounts![0].id;
+  if (!s.accounts!.some((a) => a.id === account))
+    throw new Error("Счёт не найден");
   const next = list.filter((e) => e.id !== d.id);
   if (!remove) {
-    if (d.kind === "opening" && next.some((e) => e.kind === "opening"))
+    if (
+      d.kind === "opening" &&
+      next.some((e) => e.kind === "opening" && e.account_id === account)
+    )
       throw new Error("Начальный остаток уже задан");
     next.push({
       ...d,
+      account_id: account,
       amount: decimal(parseMoney(d.amount)),
       household_id: family.id,
       user_id: old?.user_id ?? DEMO_USER,
@@ -385,19 +443,48 @@ export function localSavings(d: SavingsDraft, remove = false) {
       version: d.version + 1,
     });
   }
-  const days = Array.from(new Set(next.map((e) => e.occurred_on))).sort();
-  let balance = 0;
-  for (const date of days) {
-    balance += total(
-      next
-        .filter((e) => e.occurred_on === date)
-        .map((e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1)),
-    );
-    if (balance < 0)
-      throw new Error(
-        "На накопительном счёте недостаточно средств на эту дату",
+  for (const a of s.accounts!) {
+    const entries = next.filter((e) => e.account_id === a.id);
+    const days = Array.from(new Set(entries.map((e) => e.occurred_on))).sort();
+    let balance = 0;
+    for (const date of days) {
+      balance += total(
+        entries
+          .filter((e) => e.occurred_on === date)
+          .map(
+            (e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
+          ),
       );
+      if (balance < 0)
+        throw new Error(
+          "На накопительном счёте недостаточно средств на эту дату",
+        );
+    }
   }
   s.savings = next;
+  write(s);
+}
+
+export function localSavingsAccount(id: string, name: string, version: number) {
+  const s = read();
+  const old = s.accounts!.find((a) => a.id === id);
+  if ((old?.version ?? 0) !== version) throw new Error("Счёт уже изменён");
+  if (!name.trim() || name.trim().length > 60)
+    throw new Error("Проверьте название счёта");
+  if (
+    s.accounts!.some(
+      (a) => a.id !== id && a.name.toLowerCase() === name.trim().toLowerCase(),
+    )
+  )
+    throw new Error("Счёт с таким названием уже есть");
+  s.accounts = [
+    ...s.accounts!.filter((a) => a.id !== id),
+    {
+      id,
+      name: name.trim(),
+      version: version + 1,
+      is_default: old?.is_default ?? false,
+    },
+  ];
   write(s);
 }

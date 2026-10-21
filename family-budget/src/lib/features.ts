@@ -71,6 +71,7 @@ export const saveSavings = (family: string, d: SavingsDraft, remove = false) =>
         p_date: d.occurred_on,
         p_comment: d.comment.trim() || null,
         p_delete: remove,
+        p_account: d.account_id ?? null,
       })
     : local.localSavings(d, remove);
 export function dueDate(month: string, day: number) {
@@ -84,3 +85,18 @@ export function signedCents(value: string) {
     throw new Error("Некорректная сумма от сервера");
   return n;
 }
+
+export const saveSavingsAccount = (
+  family: string,
+  id: string,
+  name: string,
+  version: number,
+) =>
+  configured
+    ? rpc("save_savings_account", {
+        p_household: family,
+        p_id: id,
+        p_name: name,
+        p_version: version,
+      })
+    : local.localSavingsAccount(id, name, version);

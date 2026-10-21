@@ -1,3 +1,7 @@
+import { Help } from "./components/Help";
+import { Bullet } from "./components/Bullet";
+import { Analysis } from "./components/Analysis";
+import { monthPoint, type MonthPoint } from "./lib/analysis";
 import {
   Appearance,
   CategorySettings,
@@ -124,6 +128,12 @@ function Workspace({ user }: { user: string }) {
   const [budgetView, setBudgetView] = useState<
     "limits" | "recurring" | "savings"
   >("limits");
+  const [analysisView, setAnalysisView] = useState<
+    "overview" | "categories" | "operations"
+  >("overview");
+  const [allCategories, setAllCategories] = useState(false);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [trendError, setTrendError] = useState("");
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<Snapshot | null>(null);
   const [rows, setRows] = useState<Transaction[]>([]);
@@ -146,9 +156,7 @@ function Workspace({ user }: { user: string }) {
   const [invite, setInvite] = useState("");
   const [newInvite, setNewInvite] = useState("");
   const [memberName, setMemberName] = useState("");
-  const [trend, setTrend] = useState<
-    { month: string; spent: number; earned: number }[]
-  >([]);
+  const [trend, setTrend] = useState<MonthPoint[]>([]);
 
   const refresh = useCallback(async () => {
     const request = ++generation.current;
@@ -269,31 +277,31 @@ function Workspace({ user }: { user: string }) {
   useEffect(() => {
     if (tab !== "history" || !familyId) return;
     let active = true;
+    setTrendLoading(true);
+    setTrendError("");
     void Promise.all(
-      Array.from({ length: 6 }, (_, i) => shiftMonth(month, i - 5)).map(
-        async (m) => {
-          const s = configured ? await api.snapshot(m) : local.localSnapshot(m);
-          return {
-            month: m,
-            spent: total(
-              (s?.summary ?? [])
-                .filter((c) => c.kind === "expense")
-                .map((c) => summaryCents(c.cents)),
-            ),
-            earned: total(
-              (s?.summary ?? [])
-                .filter((c) => c.kind === "income")
-                .map((c) => summaryCents(c.cents)),
-            ),
-          };
-        },
-      ),
+      Array.from({ length: 6 }, (_, i) => shiftMonth(month, i - 5))
+        .filter(validMonth)
+        .map(async (m) => {
+          const snapshot = configured
+            ? await api.snapshot(m)
+            : local.localSnapshot(m);
+          if (!snapshot || snapshot.family.id !== familyId)
+            throw new Error("Доступ к семье изменился. Обновите данные");
+          return monthPoint(m, snapshot);
+        }),
     )
       .then((items) => {
         if (active) setTrend(items);
       })
       .catch((e) => {
-        if (active) setError(message(e));
+        if (active) {
+          setTrend([]);
+          setTrendError(message(e));
+        }
+      })
+      .finally(() => {
+        if (active) setTrendLoading(false);
       });
     return () => {
       active = false;
@@ -331,6 +339,7 @@ function Workspace({ user }: { user: string }) {
   }
   function navigate(next: Tab) {
     if (next === "add") setDraft(local.newDraft());
+    if (next === "history") setAnalysisView("overview");
     setTab(next);
     setNotice("");
   }
@@ -491,10 +500,16 @@ function Workspace({ user }: { user: string }) {
     remainingPayments.map((r) => parseMoney(r.amount)),
   );
   const ranked = cats
-    .filter((c) => c.spent > 0)
+    .filter((c) => c.spent > 0 || c.budget)
     .sort((a, b) => b.spent - a.spent);
-  const top = ranked.slice(0, 4);
-  const others = total(ranked.slice(4).map((c) => c.spent));
+  const top = allCategories ? ranked : ranked.slice(0, 4);
+  const catMaximum = Math.max(
+    1,
+    ...ranked.flatMap((c) => [
+      c.spent,
+      c.budget ? parseMoney(c.budget.amount, true) * 1.25 : 0,
+    ]),
+  );
   function editTransaction(t: Transaction) {
     setDraft({
       id: t.id,
@@ -541,6 +556,7 @@ function Workspace({ user }: { user: string }) {
       if (d.occurred_on.slice(0, 7) !== month)
         changeMonth(d.occurred_on.slice(0, 7));
       setDraft(local.newDraft());
+      setAnalysisView("operations");
       setTab("history");
     }
     return ok;
@@ -576,7 +592,7 @@ function Workspace({ user }: { user: string }) {
             {tab === "home"
               ? "Всё под контролем"
               : tab === "history"
-                ? "Журнал"
+                ? "Анализ"
                 : tab === "budget"
                   ? "Бюджет"
                   : tab === "settings"
@@ -613,37 +629,71 @@ function Workspace({ user }: { user: string }) {
           {monthPicker}
           <div className="metric-grid">
             <article>
-              <small>Доходы</small>
+              <small className="metric-label">
+                Доходы{" "}
+                <Help label="Доходы">
+                  Все доходы выбранного месяца. Пополнения накопительного счёта
+                  сюда не входят.
+                </Help>
+              </small>
               <strong className="green">{currency(earned)}</strong>
             </article>
             <article>
-              <small>Расходы</small>
+              <small className="metric-label">
+                Расходы{" "}
+                <Help label="Расходы">
+                  Расходы выбранного месяца, включая отмеченные обязательные
+                  платежи. Переводы в накопления сюда не входят.
+                </Help>
+              </small>
               <strong>{currency(spent)}</strong>
             </article>
             <article>
-              <small>Свободно за месяц</small>
+              <small className="metric-label">
+                Свободно за месяц{" "}
+                <Help label="Свободно за месяц">
+                  Доходы − расходы − пополнения накоплений + снятия. Без
+                  начального остатка текущего счёта.
+                </Help>
+              </small>
               <strong
                 className={earned - spent - transfers < 0 ? "danger" : ""}
               >
                 {currency(earned - spent - transfers)}
               </strong>
-              <small>После переводов в накопления</small>
             </article>
-            <button
-              className="metric-link"
-              onClick={() => {
-                setBudgetView("savings");
-                navigate("budget");
-              }}
-            >
-              <small>Накопления ↗</small>
-              <strong>{currency(signedCents(savings.balance_cents))}</strong>
-              <small>На конец выбранного месяца</small>
-            </button>
+            <article className="savings-metric">
+              <small className="metric-label">
+                Накопления{" "}
+                <Help label="Накопления">
+                  Общий баланс всех накопительных счетов на конец выбранного
+                  месяца с учётом начальных остатков. Нажмите сумму, чтобы
+                  открыть счета.
+                </Help>
+              </small>
+              <button
+                className="metric-value"
+                onClick={() => {
+                  setBudgetView("savings");
+                  navigate("budget");
+                }}
+              >
+                <strong>
+                  {currency(signedCents(savings.balance_cents))} ↗
+                </strong>
+              </button>
+            </article>
           </div>
-          <article className="dashboard-budget">
+          <article className="spending-card">
             <div className="line">
-              <b>Бюджет расходов</b>
+              <h3>
+                Расходы и бюджет{" "}
+                <Help label="Расходы и бюджет">
+                  Полоса — фактические расходы, риска — заданный лимит. При
+                  превышении полоса становится красной. Без заданного лимита
+                  риски нет. Длина полос категорий показана в общей шкале.
+                </Help>
+              </h3>
               <button
                 className="tiny"
                 onClick={() => {
@@ -651,24 +701,26 @@ function Workspace({ user }: { user: string }) {
                   navigate("budget");
                 }}
               >
-                {planned ? currency(plan) : "Задать лимиты"}
+                Лимиты →
               </button>
             </div>
-            <div className="bar">
-              <span
-                className={spent > plan && planned ? "over" : ""}
-                style={{
-                  width: `${plan ? Math.min(100, (spent / plan) * 100) : 0}%`,
-                }}
-              />
-            </div>
-            <div className="line">
+            <div className="line spending-total">
+              <b>{currency(spent)}</b>
               <small>
+                {planned ? "из " + currency(plan) : "Лимиты не заданы"}
+              </small>
+            </div>
+            <Bullet
+              actual={spent}
+              limit={planned ? plan : null}
+              label="Общий бюджет"
+            />
+            <div className="line spending-status">
+              <small className={planned && spent > plan ? "danger" : ""}>
                 {planned
-                  ? (spent > plan ? "Превышение" : "Осталось") +
-                    ": " +
+                  ? (spent > plan ? "Превышение: " : "Осталось: ") +
                     currency(Math.abs(plan - spent))
-                  : "Лимиты не заданы"}
+                  : "Задайте бюджет по категориям"}
               </small>
               <button
                 className="tiny"
@@ -677,64 +729,65 @@ function Workspace({ user }: { user: string }) {
                   navigate("budget");
                 }}
               >
-                Обязательные: {currency(requiredLeft)} ↗
+                К оплате: {currency(requiredLeft)} ↗
               </button>
             </div>
-          </article>
-          <article className="breakdown">
-            <div className="line">
-              <h3>Куда ушли деньги</h3>
-              <button className="tiny" onClick={() => navigate("history")}>
-                Журнал →
-              </button>
-            </div>
-            {top.map((c, i) => (
-              <div className="category-mini" key={c.id}>
-                <div className="line">
-                  <span>
-                    <i
-                      style={{
-                        background: [
-                          "#2581c4",
-                          "#b66d43",
-                          "#9c72c5",
-                          "#229f79",
-                        ][i],
-                      }}
+            <div className="category-bullets">
+              {top.map((c) => {
+                const limit = c.budget
+                  ? parseMoney(c.budget.amount, true)
+                  : null;
+                return (
+                  <div className="category-bullet" key={c.id}>
+                    <div className="line">
+                      <span>{c.name}</span>
+                      <b
+                        className={
+                          limit !== null && c.spent > limit ? "danger" : ""
+                        }
+                      >
+                        {currency(c.spent)}
+                      </b>
+                    </div>
+                    <Bullet
+                      actual={c.spent}
+                      limit={limit}
+                      maximum={catMaximum}
+                      label={c.name}
                     />
-                    {c.name}{" "}
-                    <small>{Math.round((c.spent / spent) * 100)}%</small>
-                  </span>
-                  <b>{currency(c.spent)}</b>
-                </div>
-                <div className="bar">
-                  <span
-                    style={{
-                      width: `${(c.spent / spent) * 100}%`,
-                      background: ["#2581c4", "#b66d43", "#9c72c5", "#229f79"][
-                        i
-                      ],
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-            {others > 0 && (
-              <div className="line">
-                <small>Другие категории</small>
-                <b>{currency(others)}</b>
-              </div>
-            )}
+                    <small>
+                      {limit === null
+                        ? "Без лимита"
+                        : "Лимит " + currency(limit)}
+                      {limit !== null && c.spent > limit ? " · превышен" : ""}
+                    </small>
+                  </div>
+                );
+              })}
+            </div>
             {!ranked.length && (
               <p className="hint">
-                Расходов пока нет. Добавьте первую операцию кнопкой +.
+                Добавьте первую операцию или задайте лимиты.
               </p>
             )}
+            <div className="line">
+              {ranked.length > 4 ? (
+                <button
+                  className="tiny"
+                  onClick={() => setAllCategories(!allCategories)}
+                >
+                  {allCategories
+                    ? "Свернуть"
+                    : `Все категории (${ranked.length})`}
+                </button>
+              ) : (
+                <span />
+              )}
+              <button className="tiny" onClick={() => navigate("history")}>
+                Анализ →
+              </button>
+            </div>
           </article>
-          <small className="dashboard-note">
-            Свободно = доходы − расходы − переводы в накопления. Без начального
-            остатка текущего счёта.
-          </small>
         </section>
       )}
       {tab === "add" && (
@@ -748,6 +801,7 @@ function Workspace({ user }: { user: string }) {
           onSave={save}
           onCancel={() => {
             setDraft(local.newDraft());
+            setAnalysisView("operations");
             setTab("history");
           }}
         />
@@ -756,138 +810,163 @@ function Workspace({ user }: { user: string }) {
         <section>
           <h2 className="sr-only">История операций</h2>
           {monthPicker}
-          <div className="filters">
-            <label>
-              Категория
-              <select
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setOffset(0);
-                }}
+          <div className="subnav" role="group" aria-label="Разделы анализа">
+            {(
+              [
+                ["overview", "Обзор"],
+                ["categories", "Категории"],
+                ["operations", "Операции"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                className={analysisView === key ? "selected" : ""}
+                aria-pressed={analysisView === key}
+                onClick={() => setAnalysisView(key)}
               >
-                <option value="">Все категории</option>
-                {data.categories.map((c) => (
-                  <option value={c.id} key={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Поиск по комментарию
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setOffset(0);
-                }}
-                placeholder="Например, магазин"
-              />
-            </label>
-          </div>
-          <details className="history-analysis">
-            <summary>Итоги за шесть месяцев</summary>
-            <article>
-              {trend.map((t) => (
-                <div className="trend-row" key={t.month}>
-                  <span>{monthLabel(t.month)}</span>
-                  <div>
-                    <b>{currency(t.spent)}</b>
-                    <small>Доходы: {currency(t.earned)}</small>
-                  </div>
-                </div>
-              ))}
-              <small>Основные суммы — расходы.</small>
-            </article>
-          </details>
-          <details className="history-analysis">
-            <summary>Экспорт операций CSV</summary>
-            <article>
-              <p>
-                Все операции за {monthLabel(month)}, независимо от фильтра и
-                открытой страницы истории.
-              </p>
-              <button disabled={busy} onClick={() => void exportCsv()}>
-                Скачать CSV
+                {label}
               </button>
-            </article>
-          </details>
-          <p className="hint">Найдено операций: {count}</p>
-          {rows.map((t) => (
-            <article className="entry" key={t.id}>
-              <div>
-                <b>
-                  {data.categories.find((c) => c.id === t.category_id)?.name ??
-                    "Категория"}
-                </b>
-                <small>
-                  {t.occurred_on} · {author(t.user_id)}
-                </small>
-                {t.comment && <p className="comment">{t.comment}</p>}
-                {t.version > 1 && (
-                  <small>Изменено: {author(t.updated_by)}</small>
-                )}
-              </div>
-              <div className="entryright">
-                <b className={t.kind === "income" ? "green" : ""}>
-                  {t.kind === "income" ? "+" : "−"}
-                  {currency(parseMoney(t.amount))}
-                </b>
-                <div>
-                  <button
-                    className="tiny"
-                    disabled={busy}
-                    onClick={() => editTransaction(t)}
-                  >
-                    Изменить
-                  </button>
-                  <button
-                    className="tiny danger"
-                    disabled={busy}
-                    onClick={() => {
-                      if (confirm("Удалить эту операцию?"))
-                        void run(async () => {
-                          if (configured) await api.deleteTransaction(t);
-                          else local.localDelete(t);
-                        }, "Операция удалена");
+            ))}
+          </div>
+          {analysisView !== "operations" && (
+            <Analysis
+              key={month}
+              points={trend}
+              cats={data.categories}
+              view={analysisView}
+              loading={trendLoading}
+              error={trendError}
+              onOperations={(id) => {
+                setCategory(id);
+                setSearch("");
+                setOffset(0);
+                setAnalysisView("operations");
+              }}
+            />
+          )}
+          {analysisView === "operations" && (
+            <>
+              <div className="filters">
+                <label>
+                  Категория
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      setCategory(e.target.value);
+                      setOffset(0);
                     }}
                   >
-                    Удалить
+                    <option value="">Все категории</option>
+                    {data.categories.map((c) => (
+                      <option value={c.id} key={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Поиск по комментарию
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setOffset(0);
+                    }}
+                    placeholder="Например, магазин"
+                  />
+                </label>
+              </div>
+              <details className="history-analysis">
+                <summary>Экспорт операций CSV</summary>
+                <article>
+                  <p>
+                    Все операции за {monthLabel(month)}, независимо от фильтра и
+                    открытой страницы истории.
+                  </p>
+                  <button disabled={busy} onClick={() => void exportCsv()}>
+                    Скачать CSV
+                  </button>
+                </article>
+              </details>
+              <p className="hint">Найдено операций: {count}</p>
+              {rows.map((t) => (
+                <article className="entry" key={t.id}>
+                  <div>
+                    <b>
+                      {data.categories.find((c) => c.id === t.category_id)
+                        ?.name ?? "Категория"}
+                    </b>
+                    <small>
+                      {t.occurred_on} · {author(t.user_id)}
+                    </small>
+                    {t.comment && <p className="comment">{t.comment}</p>}
+                    {t.version > 1 && (
+                      <small>Изменено: {author(t.updated_by)}</small>
+                    )}
+                  </div>
+                  <div className="entryright">
+                    <b className={t.kind === "income" ? "green" : ""}>
+                      {t.kind === "income" ? "+" : "−"}
+                      {currency(parseMoney(t.amount))}
+                    </b>
+                    <div>
+                      <button
+                        className="tiny"
+                        disabled={busy}
+                        onClick={() => editTransaction(t)}
+                      >
+                        Изменить
+                      </button>
+                      <button
+                        className="tiny danger"
+                        disabled={busy}
+                        onClick={() => {
+                          if (confirm("Удалить эту операцию?"))
+                            void run(async () => {
+                              if (configured) await api.deleteTransaction(t);
+                              else local.localDelete(t);
+                            }, "Операция удалена");
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {!rows.length && (
+                <div className="empty">
+                  <h3>Здесь пока пусто</h3>
+                  <p>Добавьте операцию или измените фильтры.</p>
+                  <button onClick={() => navigate("add")}>
+                    Добавить операцию
                   </button>
                 </div>
+              )}
+              <div className="pagination">
+                <button
+                  className="secondary"
+                  disabled={offset === 0 || refreshing}
+                  onClick={() => setOffset((n) => Math.max(0, n - 30))}
+                >
+                  Назад
+                </button>
+                <span>
+                  {count
+                    ? `${offset + 1}–${Math.min(offset + rows.length, count)} из ${count}`
+                    : "0 операций"}
+                </span>
+                <button
+                  className="secondary"
+                  disabled={offset + rows.length >= count || refreshing}
+                  onClick={() => setOffset((n) => n + rows.length)}
+                >
+                  Далее
+                </button>
               </div>
-            </article>
-          ))}
-          {!rows.length && (
-            <div className="empty">
-              <h3>Здесь пока пусто</h3>
-              <p>Добавьте операцию или измените фильтры.</p>
-              <button onClick={() => navigate("add")}>Добавить операцию</button>
-            </div>
+            </>
           )}
-          <div className="pagination">
-            <button
-              className="secondary"
-              disabled={offset === 0 || refreshing}
-              onClick={() => setOffset((n) => Math.max(0, n - 30))}
-            >
-              Назад
-            </button>
-            <span>
-              {count
-                ? `${offset + 1}–${Math.min(offset + rows.length, count)} из ${count}`
-                : "0 операций"}
-            </span>
-            <button
-              className="secondary"
-              disabled={offset + rows.length >= count || refreshing}
-              onClick={() => setOffset((n) => n + rows.length)}
-            >
-              Далее
-            </button>
-          </div>
         </section>
       )}
       {tab === "budget" && (
@@ -1122,7 +1201,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.3.0</small>
+            <small>Версия 0.4.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
@@ -1145,7 +1224,7 @@ function Workspace({ user }: { user: string }) {
         {(
           [
             ["home", "Главная"],
-            ["history", "Журнал"],
+            ["history", "Анализ"],
             ["add", "+"],
             ["budget", "Бюджет"],
             ["settings", "Настройки"],

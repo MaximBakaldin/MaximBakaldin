@@ -17,13 +17,11 @@ beforeEach(() => {
   vi.spyOn(window, "confirm").mockReturnValue(true);
   vi.stubGlobal(
     "matchMedia",
-    vi
-      .fn()
-      .mockReturnValue({
-        matches: false,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }),
+    vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
   );
 });
 describe("Новые сценарии", () => {
@@ -159,7 +157,7 @@ describe("Новые сценарии", () => {
     ).toBe("18010");
     expect(
       within(screen.getByRole("navigation"))
-        .getByRole("button", { name: "Журнал" })
+        .getByRole("button", { name: "Анализ" })
         .getAttribute("aria-current"),
     ).toBe("page");
   });

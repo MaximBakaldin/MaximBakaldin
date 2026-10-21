@@ -78,6 +78,7 @@ export type Recurring = {
 export type RecurringDraft = Omit<Recurring, "payment" | "effective_month">;
 export type SavingsKind = "opening" | "deposit" | "withdrawal";
 export type SavingsEntry = {
+  account_id?: string;
   id: string;
   household_id: string;
   kind: SavingsKind;
@@ -89,12 +90,14 @@ export type SavingsEntry = {
   version: number;
 };
 export type Savings = {
+  accounts?: SavingsAccountData[];
   balance_cents: string;
   transfer_cents: string;
   has_opening: boolean;
   entries: SavingsEntry[];
 };
 export type SavingsDraft = {
+  account_id?: string;
   id: string;
   version: number;
   kind: SavingsKind;
@@ -106,3 +109,13 @@ export type Run = (
   action: () => Promise<void> | void,
   success?: string,
 ) => Promise<boolean>;
+
+export type SavingsAccountData = {
+  id: string;
+  name: string;
+  version: number;
+  is_default: boolean;
+  balance_cents: string;
+  transfer_cents: string;
+  has_opening: boolean;
+};

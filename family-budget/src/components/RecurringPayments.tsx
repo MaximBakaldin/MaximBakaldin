@@ -1,3 +1,4 @@
+import { Help } from "./Help";
 import { useState } from "react";
 import type {
   Category,
@@ -45,7 +46,13 @@ export function RecurringPayments({
   return (
     <section>
       <div className="section-heading">
-        <h2>Обязательные платежи</h2>
+        <h2>
+          Обязательные платежи{" "}
+          <Help label="Обязательные платежи">
+            Отметка оплаты создаёт расход. Эти суммы входят в факт категорий;
+            учитывайте их при назначении лимитов бюджета.
+          </Help>
+        </h2>
         <button
           className="tiny"
           onClick={() =>
@@ -80,10 +87,7 @@ export function RecurringPayments({
           </div>
         </div>
       </article>
-      <p className="hint">
-        Отметка оплаты создаёт расход. Эти суммы входят в факт категорий;
-        учитывайте их при назначении лимитов бюджета.
-      </p>
+
       {draft && (
         <form
           className="editor"

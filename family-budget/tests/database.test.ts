@@ -480,6 +480,7 @@ describe("Накопления", () => {
       "recurring_rules",
       "recurring_terms",
       "savings_entries",
+      "savings_accounts",
     ]) {
       for (const role of ["anon", "authenticated"])
         expect(
@@ -498,5 +499,91 @@ describe("Накопления", () => {
     await db.exec("reset role; set role anon");
     await expect(savings()).rejects.toThrow("permission denied");
     await expect(recurring()).rejects.toThrow("permission denied");
+  });
+});
+
+const ACCOUNT = "40000000-0000-0000-0000-000000000001";
+async function account(name = "Отпуск", version = 0, id = ACCOUNT) {
+  return value("select public.save_savings_account($1,$2,$3,$4) as v", [
+    family,
+    id,
+    name,
+    version,
+  ]);
+}
+async function onAccount(
+  id: string,
+  kind: string,
+  amount: string,
+  accountId = ACCOUNT,
+  version = 0,
+  date = "2026-10-01",
+) {
+  return value(
+    "select public.save_savings($1,$2,$3,$4,$5,$6,null,false,$7) as v",
+    [family, id, version, kind, amount, date, accountId],
+  );
+}
+describe("Несколько накопительных счетов", () => {
+  it("сохраняет отдельные остатки и общий итог; один счёт не покрывает снятие с другого", async () => {
+    await savings(SAVING, 0, "opening", "1000");
+    await account();
+    await expect(onAccount(WITHDRAW, "withdrawal", "1")).rejects.toThrow(
+      "недостаточно",
+    );
+    await onAccount(WITHDRAW, "opening", "200");
+    await onAccount(RULE, "deposit", "25");
+    const s = (await snap()).savings!;
+    expect(s.balance_cents).toBe("122500");
+    expect(s.transfer_cents).toBe("2500");
+    expect(s.accounts!.find((a) => a.id === ACCOUNT)).toMatchObject({
+      balance_cents: "22500",
+      has_opening: true,
+    });
+    expect(
+      s.accounts!.reduce((sum, a) => sum + Number(a.balance_cents), 0),
+    ).toBe(Number(s.balance_cents));
+    await expect(onAccount(ID, "opening", "1")).rejects.toThrow("уже задан");
+  });
+  it("проверяет названия, версии и семейный доступ", async () => {
+    await account();
+    await account();
+    await as(B);
+    await account("Поездки", 1);
+    await expect(account("Устарело", 1)).rejects.toThrow("уже изменён");
+    await expect(account("поездки", 0, ID)).rejects.toThrow("уже есть");
+    await as(C);
+    expect(
+      await value<number>(
+        "select count(*)::int as v from public.savings_accounts",
+      ),
+    ).toBe(0);
+    await expect(account()).rejects.toThrow("Доступ запрещён");
+    await expect(
+      value(
+        "select public.save_savings($1,$2,0,'deposit',1,'2026-10-01',null,false,$3) as v",
+        [otherFamily, ID, ACCOUNT],
+      ),
+    ).rejects.toThrow("Счёт не найден");
+    await expect(
+      value("select public.save_savings_account($1,$2,'Чужой',0) as v", [
+        otherFamily,
+        ACCOUNT,
+      ]),
+    ).rejects.toThrow("Доступ запрещён");
+  });
+  it("перенос движения между счетами не оставляет отрицательный остаток", async () => {
+    await savings();
+    await savings(WITHDRAW, 0, "withdrawal", "400", "2026-10-02");
+    await account();
+    await expect(
+      onAccount(SAVING, "deposit", "500.25", ACCOUNT, 1),
+    ).rejects.toThrow("недостаточно");
+    await savings(WITHDRAW, 1, "withdrawal", "400", "2026-10-02", true);
+    await onAccount(SAVING, "deposit", "500.25", ACCOUNT, 1);
+    expect(
+      (await snap()).savings!.accounts!.find((a) => a.id === ACCOUNT)
+        ?.balance_cents,
+    ).toBe("50025");
   });
 });
