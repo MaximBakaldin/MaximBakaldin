@@ -128,7 +128,7 @@ function Workspace({ user }: { user: string }) {
   const [tab, setTab] = useState<Tab>("home");
   const [budgetView, setBudgetView] = useState<
     "limits" | "recurring" | "savings"
-  >("limits");
+  >("recurring");
   const [analysisView, setAnalysisView] = useState<"overview" | "operations">(
     "overview",
   );
@@ -498,6 +498,7 @@ function Workspace({ user }: { user: string }) {
   const { paid: requiredPaid, pending: requiredLeft } = obligations(
     data.recurring ?? [],
   );
+  const freeForMonth = earned - spent - transfers - requiredLeft;
   const ranked = cats
     .filter((c) => c.spent > 0 || c.budget || c.pending)
     .sort((a, b) => b.spent - a.spent);
@@ -671,14 +672,13 @@ function Workspace({ user }: { user: string }) {
               <small className="metric-label">
                 Свободно за месяц{" "}
                 <Help label="Свободно за месяц">
-                  Доходы − расходы − пополнения накоплений + снятия. Без
-                  начального остатка текущего счёта.
+                  Доходы − расходы − обязательные к оплате − пополнения
+                  накоплений + снятия. Оплаченные обязательные уже входят в
+                  расходы. Без начального остатка текущего счёта.
                 </Help>
               </small>
-              <strong
-                className={earned - spent - transfers < 0 ? "danger" : ""}
-              >
-                {currency(earned - spent - transfers)}
+              <strong className={freeForMonth < 0 ? "danger" : ""}>
+                {currency(freeForMonth)}
               </strong>
             </article>
             <article className="savings-metric">
@@ -1018,9 +1018,9 @@ function Workspace({ user }: { user: string }) {
           <div className="subnav" role="group" aria-label="Разделы бюджета">
             {(
               [
-                ["limits", "Лимиты"],
                 ["recurring", "Обязательные"],
                 ["savings", "Накопления"],
+                ["limits", "Лимиты"],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -1244,7 +1244,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.6.0</small>
+            <small>Версия 0.6.1</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
@@ -1267,9 +1267,9 @@ function Workspace({ user }: { user: string }) {
         {(
           [
             ["home", "Главная"],
-            ["history", "Анализ"],
-            ["add", "+"],
             ["budget", "Бюджет"],
+            ["add", "+"],
+            ["history", "Анализ"],
             ["settings", "Настройки"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
