@@ -26,7 +26,7 @@ describe("Локальный бюджет", () => {
     render(<App />);
     await screen.findByText("Всё под контролем");
     expect(screen.getAllByText(/100,10/).length).toBeGreaterThan(0);
-    await u.click(screen.getByRole("button", { name: "История" }));
+    await u.click(screen.getByRole("button", { name: "Журнал" }));
     await u.click(screen.getByRole("button", { name: "Изменить" }));
     await u.click(screen.getByRole("button", { name: "Главная" }));
     await u.click(screen.getByRole("button", { name: "Добавить операцию" }));

@@ -1,3 +1,12 @@
+import {
+  Appearance,
+  CategorySettings,
+  FamilySettings,
+} from "./components/Settings";
+import { RecurringPayments } from "./components/RecurringPayments";
+import { SavingsAccount } from "./components/SavingsAccount";
+import { signedCents } from "./lib/features";
+import { watchTheme } from "./lib/theme";
 import { InstallApp } from "./components/InstallApp";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client, configurationError, configured, supabase } from "./db";
@@ -24,6 +33,7 @@ const message = (e: unknown) =>
     : "Не удалось выполнить действие. Попробуйте ещё раз";
 
 export default function App() {
+  useEffect(watchTheme, []);
   const [auth, setAuth] = useState<{
     ready: boolean;
     user: string | null;
@@ -111,6 +121,9 @@ export default function App() {
 
 function Workspace({ user }: { user: string }) {
   const [tab, setTab] = useState<Tab>("home");
+  const [budgetView, setBudgetView] = useState<
+    "limits" | "recurring" | "savings"
+  >("limits");
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<Snapshot | null>(null);
   const [rows, setRows] = useState<Transaction[]>([]);
@@ -254,7 +267,7 @@ function Workspace({ user }: { user: string }) {
     };
   }, [familyId, refresh]);
   useEffect(() => {
-    if (tab !== "settings" || !familyId) return;
+    if (tab !== "history" || !familyId) return;
     let active = true;
     void Promise.all(
       Array.from({ length: 6 }, (_, i) => shiftMonth(month, i - 5)).map(
@@ -450,7 +463,13 @@ function Workspace({ user }: { user: string }) {
   const plan = total(data.budgets.map((b) => parseMoney(b.amount, true)));
   const planned = data.budgets.length > 0;
   const cats = data.categories
-    .filter((c) => c.kind === "expense")
+    .filter(
+      (c) =>
+        c.kind === "expense" &&
+        (!c.archived ||
+          data.budgets.some((b) => b.category_id === c.id) ||
+          data.summary.some((x) => x.category_id === c.id && x.cents !== "0")),
+    )
     .map((c) => ({
       ...c,
       spent: summaryCents(
@@ -458,6 +477,42 @@ function Workspace({ user }: { user: string }) {
       ),
       budget: data.budgets.find((b) => b.category_id === c.id),
     }));
+  const savings = data.savings ?? {
+    balance_cents: "0",
+    transfer_cents: "0",
+    has_opening: false,
+    entries: [],
+  };
+  const transfers = signedCents(savings.transfer_cents);
+  const remainingPayments = (data.recurring ?? []).filter(
+    (r) => r.active && !r.payment,
+  );
+  const requiredLeft = total(
+    remainingPayments.map((r) => parseMoney(r.amount)),
+  );
+  const ranked = cats
+    .filter((c) => c.spent > 0)
+    .sort((a, b) => b.spent - a.spent);
+  const top = ranked.slice(0, 4);
+  const others = total(ranked.slice(4).map((c) => c.spent));
+  function editTransaction(t: Transaction) {
+    setDraft({
+      id: t.id,
+      version: t.version,
+      kind: t.kind,
+      amount: String(t.amount),
+      category_id: t.category_id,
+      occurred_on: t.occurred_on,
+      comment: t.comment ?? "",
+    });
+    setTab("add");
+  }
+  function removeTransaction(t: Transaction) {
+    return run(async () => {
+      if (configured) await api.deleteTransaction(t);
+      else local.localDelete(t);
+    }, "Оплата отменена, расход удалён");
+  }
   const owner = data.family.created_by === user;
   const author = (id: string) =>
     id === user
@@ -516,10 +571,18 @@ function Workspace({ user }: { user: string }) {
     <main className="shell">
       <header>
         <div>
-          <div className="brand">
-            {configured ? data.family.name : "ЛИЧНЫЙ БЮДЖЕТ"}
-          </div>
-          <h1>Всё под контролем</h1>
+          <div className="brand">{data.family.name}</div>
+          <h1>
+            {tab === "home"
+              ? "Всё под контролем"
+              : tab === "history"
+                ? "Журнал"
+                : tab === "budget"
+                  ? "Бюджет"
+                  : tab === "settings"
+                    ? "Настройки"
+                    : "Операция"}
+          </h1>
         </div>
         <button
           className="refresh"
@@ -537,7 +600,7 @@ function Workspace({ user }: { user: string }) {
             : `Обновлено в ${lastSync}`
           : "На этом устройстве · данные сохраняются"}
       </div>
-      {!configured && (
+      {!configured && tab === "settings" && (
         <p className="notice">
           Локальный режим: данные хранятся в этом браузере. Для совместного
           бюджета подключите Supabase. Очистка данных сайта удалит локальный
@@ -546,85 +609,141 @@ function Workspace({ user }: { user: string }) {
       )}
       {feedback}
       {tab === "home" && (
-        <section>
+        <section className="dashboard">
           {monthPicker}
-          <article className="hero">
-            <small>Расходы за месяц</small>
-            <h2>{currency(spent)}</h2>
+          <div className="metric-grid">
+            <article>
+              <small>Доходы</small>
+              <strong className="green">{currency(earned)}</strong>
+            </article>
+            <article>
+              <small>Расходы</small>
+              <strong>{currency(spent)}</strong>
+            </article>
+            <article>
+              <small>Свободно за месяц</small>
+              <strong
+                className={earned - spent - transfers < 0 ? "danger" : ""}
+              >
+                {currency(earned - spent - transfers)}
+              </strong>
+              <small>После переводов в накопления</small>
+            </article>
+            <button
+              className="metric-link"
+              onClick={() => {
+                setBudgetView("savings");
+                navigate("budget");
+              }}
+            >
+              <small>Накопления ↗</small>
+              <strong>{currency(signedCents(savings.balance_cents))}</strong>
+              <small>На конец выбранного месяца</small>
+            </button>
+          </div>
+          <article className="dashboard-budget">
+            <div className="line">
+              <b>Бюджет расходов</b>
+              <button
+                className="tiny"
+                onClick={() => {
+                  setBudgetView("limits");
+                  navigate("budget");
+                }}
+              >
+                {planned ? currency(plan) : "Задать лимиты"}
+              </button>
+            </div>
             <div className="bar">
               <span
+                className={spent > plan && planned ? "over" : ""}
                 style={{
                   width: `${plan ? Math.min(100, (spent / plan) * 100) : 0}%`,
                 }}
               />
             </div>
-            <div className="twocol">
-              <div>
-                <small>План</small>
-                <b>{planned ? currency(plan) : "Не задан"}</b>
-              </div>
-              <div>
-                <small>
-                  {plan - spent < 0 && planned
-                    ? "Превышение"
-                    : "Осталось по плану"}
-                </small>
-                <b>{planned ? currency(Math.abs(plan - spent)) : "—"}</b>
-              </div>
+            <div className="line">
+              <small>
+                {planned
+                  ? (spent > plan ? "Превышение" : "Осталось") +
+                    ": " +
+                    currency(Math.abs(plan - spent))
+                  : "Лимиты не заданы"}
+              </small>
+              <button
+                className="tiny"
+                onClick={() => {
+                  setBudgetView("recurring");
+                  navigate("budget");
+                }}
+              >
+                Обязательные: {currency(requiredLeft)} ↗
+              </button>
             </div>
           </article>
-          <div className="twocol">
-            <article>
-              <small>Доходы</small>
-              <h3>{currency(earned)}</h3>
-            </article>
-            <article>
-              <small>Доходы − расходы</small>
-              <h3 className={earned - spent < 0 ? "danger" : "green"}>
-                {currency(earned - spent)}
-              </h3>
-            </article>
-          </div>
-          <p className="hint">Результат месяца без учёта остатков на счетах.</p>
-          <div className="section-heading">
-            <h2>Расходы по категориям</h2>
-            <button className="tiny" onClick={() => navigate("budget")}>
-              Изменить план
-            </button>
-          </div>
-          {cats.map((c) => {
-            const limit = c.budget ? parseMoney(c.budget.amount, true) : null;
-            return (
-              <article key={c.id}>
+          <article className="breakdown">
+            <div className="line">
+              <h3>Куда ушли деньги</h3>
+              <button className="tiny" onClick={() => navigate("history")}>
+                Журнал →
+              </button>
+            </div>
+            {top.map((c, i) => (
+              <div className="category-mini" key={c.id}>
                 <div className="line">
-                  <b>{c.name}</b>
-                  <span>{currency(c.spent)}</span>
+                  <span>
+                    <i
+                      style={{
+                        background: [
+                          "#2581c4",
+                          "#b66d43",
+                          "#9c72c5",
+                          "#229f79",
+                        ][i],
+                      }}
+                    />
+                    {c.name}{" "}
+                    <small>{Math.round((c.spent / spent) * 100)}%</small>
+                  </span>
+                  <b>{currency(c.spent)}</b>
                 </div>
                 <div className="bar">
                   <span
-                    className={limit !== null && c.spent > limit ? "over" : ""}
                     style={{
-                      width: `${limit ? Math.min(100, (c.spent / limit) * 100) : 0}%`,
+                      width: `${(c.spent / spent) * 100}%`,
+                      background: ["#2581c4", "#b66d43", "#9c72c5", "#229f79"][
+                        i
+                      ],
                     }}
                   />
                 </div>
-                <small>
-                  {limit === null
-                    ? "План не задан"
-                    : c.spent > limit
-                      ? `Превышение на ${currency(c.spent - limit)}`
-                      : `Из ${currency(limit)} запланированных`}
-                </small>
-              </article>
-            );
-          })}
+              </div>
+            ))}
+            {others > 0 && (
+              <div className="line">
+                <small>Другие категории</small>
+                <b>{currency(others)}</b>
+              </div>
+            )}
+            {!ranked.length && (
+              <p className="hint">
+                Расходов пока нет. Добавьте первую операцию кнопкой +.
+              </p>
+            )}
+          </article>
+          <small className="dashboard-note">
+            Свободно = доходы − расходы − переводы в накопления. Без начального
+            остатка текущего счёта.
+          </small>
         </section>
       )}
       {tab === "add" && (
         <TransactionForm
           key={draft.id}
           initial={draft}
-          cats={data.categories}
+          cats={data.categories.filter(
+            (c) => !c.archived || c.id === draft.category_id,
+          )}
           busy={busy}
           onSave={save}
           onCancel={() => {
@@ -635,7 +754,7 @@ function Workspace({ user }: { user: string }) {
       )}
       {tab === "history" && (
         <section>
-          <h2>История операций</h2>
+          <h2 className="sr-only">История операций</h2>
           {monthPicker}
           <div className="filters">
             <label>
@@ -668,6 +787,33 @@ function Workspace({ user }: { user: string }) {
               />
             </label>
           </div>
+          <details className="history-analysis">
+            <summary>Итоги за шесть месяцев</summary>
+            <article>
+              {trend.map((t) => (
+                <div className="trend-row" key={t.month}>
+                  <span>{monthLabel(t.month)}</span>
+                  <div>
+                    <b>{currency(t.spent)}</b>
+                    <small>Доходы: {currency(t.earned)}</small>
+                  </div>
+                </div>
+              ))}
+              <small>Основные суммы — расходы.</small>
+            </article>
+          </details>
+          <details className="history-analysis">
+            <summary>Экспорт операций CSV</summary>
+            <article>
+              <p>
+                Все операции за {monthLabel(month)}, независимо от фильтра и
+                открытой страницы истории.
+              </p>
+              <button disabled={busy} onClick={() => void exportCsv()}>
+                Скачать CSV
+              </button>
+            </article>
+          </details>
           <p className="hint">Найдено операций: {count}</p>
           {rows.map((t) => (
             <article className="entry" key={t.id}>
@@ -693,18 +839,7 @@ function Workspace({ user }: { user: string }) {
                   <button
                     className="tiny"
                     disabled={busy}
-                    onClick={() => {
-                      setDraft({
-                        id: t.id,
-                        version: t.version,
-                        kind: t.kind,
-                        amount: String(t.amount),
-                        category_id: t.category_id,
-                        occurred_on: t.occurred_on,
-                        comment: t.comment ?? "",
-                      });
-                      setTab("add");
-                    }}
+                    onClick={() => editTransaction(t)}
                   >
                     Изменить
                   </button>
@@ -757,87 +892,123 @@ function Workspace({ user }: { user: string }) {
       )}
       {tab === "budget" && (
         <section>
-          <h2>План на месяц</h2>
           {monthPicker}
-          <article className="hero">
-            <small>Общий план расходов</small>
-            <h2>{currency(plan)}</h2>
-            <small>Факт: {currency(spent)}</small>
-          </article>
-          <button
-            className="secondary"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                const copied = configured
-                  ? await api.rpc<number>("copy_budget", {
-                      p_household: data.family.id,
-                      p_month: month + "-01",
-                    })
-                  : local.localCopy(month);
-                setNotice(
-                  copied
-                    ? `Скопировано категорий: ${copied}`
-                    : "Нет незаполненных категорий с планом прошлого месяца",
-                );
-              })
-            }
-          >
-            Скопировать прошлый месяц
-          </button>
-          <p className="hint">Заполненные категории сохранят свой план.</p>
-          {cats.map((c) => (
-            <BudgetRow
-              key={`${month}-${c.id}`}
-              name={c.name}
-              spent={c.spent}
-              amount={c.budget ? parseMoney(c.budget.amount, true) : 0}
-              version={c.budget?.version ?? 0}
+          <div className="subnav" role="group" aria-label="Разделы бюджета">
+            {(
+              [
+                ["limits", "Лимиты"],
+                ["recurring", "Обязательные"],
+                ["savings", "Накопления"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                className={budgetView === key ? "selected" : ""}
+                aria-pressed={budgetView === key}
+                onClick={() => setBudgetView(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {budgetView === "recurring" && (
+            <RecurringPayments
+              key={month}
+              family={data.family.id}
+              month={month}
+              items={data.recurring ?? []}
+              cats={data.categories}
               busy={busy}
-              onSave={(value, version) =>
-                run(async () => {
-                  if (configured)
-                    await api.rpc("save_budget", {
-                      p_household: data.family.id,
-                      p_category: c.id,
-                      p_month: month + "-01",
-                      p_amount: decimal(parseMoney(value, true)),
-                      p_version: version,
-                    });
-                  else local.localBudget(c.id, month, value, version);
-                }, "План сохранён")
-              }
+              run={run}
+              onEdit={editTransaction}
+              onDelete={removeTransaction}
             />
-          ))}
+          )}
+          {budgetView === "savings" && (
+            <SavingsAccount
+              key={month}
+              family={data.family.id}
+              month={month}
+              data={savings}
+              busy={busy}
+              run={run}
+            />
+          )}
+          {budgetView === "limits" && (
+            <>
+              <h2>Лимиты на месяц</h2>
+              <article className="hero">
+                <small>Бюджет расходов</small>
+                <h2>{currency(plan)}</h2>
+                <small>Факт: {currency(spent)}</small>
+              </article>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    const copied = configured
+                      ? await api.rpc<number>("copy_budget", {
+                          p_household: data.family.id,
+                          p_month: month + "-01",
+                        })
+                      : local.localCopy(month);
+                    setNotice(
+                      copied
+                        ? `Скопировано категорий: ${copied}`
+                        : "Нет незаполненных категорий с планом прошлого месяца",
+                    );
+                  })
+                }
+              >
+                Скопировать прошлый месяц
+              </button>
+              <p className="hint">Заполненные категории сохранят свой план.</p>
+              {cats.map((c) => (
+                <BudgetRow
+                  key={`${month}-${c.id}`}
+                  name={c.name}
+                  spent={c.spent}
+                  amount={c.budget ? parseMoney(c.budget.amount, true) : 0}
+                  version={c.budget?.version ?? 0}
+                  busy={busy}
+                  onSave={(value, version) =>
+                    run(async () => {
+                      if (configured)
+                        await api.rpc("save_budget", {
+                          p_household: data.family.id,
+                          p_category: c.id,
+                          p_month: month + "-01",
+                          p_amount: decimal(parseMoney(value, true)),
+                          p_version: version,
+                        });
+                      else local.localBudget(c.id, month, value, version);
+                    }, "План сохранён")
+                  }
+                />
+              ))}
+            </>
+          )}
         </section>
       )}
       {tab === "settings" && (
         <section>
-          <h2>Семья и данные</h2>
-          {monthPicker}
-          <article>
-            <h3>Последние шесть месяцев</h3>
-            {trend.map((t) => (
-              <div className="trend-row" key={t.month}>
-                <span>{monthLabel(t.month)}</span>
-                <div>
-                  <b>{currency(t.spent)}</b>
-                  <small>Доходы: {currency(t.earned)}</small>
-                </div>
-              </div>
-            ))}
-            <small>Основные суммы — расходы.</small>
-          </article>
-          <article>
-            <h3>Экспорт операций</h3>
-            <p>
-              Все операции за {monthLabel(month)}, независимо от фильтра и
-              открытой страницы истории.
-            </p>
-            <button disabled={busy} onClick={() => void exportCsv()}>
-              Скачать CSV
-            </button>
-          </article>
+          <h2 className="sr-only">Настройки приложения</h2>
+          <Appearance />
+          {owner && (
+            <FamilySettings
+              key={data.family.settings_version ?? 1}
+              family={data.family}
+              busy={busy}
+              run={run}
+            />
+          )}
+          <CategorySettings
+            cats={data.categories}
+            family={data.family.id}
+            busy={busy}
+            run={run}
+          />
           <article>
             <h3>Участники</h3>
             {data.members.map((m) => (
@@ -951,6 +1122,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
+            <small>Версия 0.3.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
@@ -973,10 +1145,10 @@ function Workspace({ user }: { user: string }) {
         {(
           [
             ["home", "Главная"],
-            ["history", "История"],
+            ["history", "Журнал"],
             ["add", "+"],
-            ["budget", "План"],
-            ["settings", "Ещё"],
+            ["budget", "Бюджет"],
+            ["settings", "Настройки"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
           <button

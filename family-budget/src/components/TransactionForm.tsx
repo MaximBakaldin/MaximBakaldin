@@ -36,7 +36,7 @@ export function TransactionForm({
   }
   return (
     <section>
-      <h2>{draft.version ? "Редактирование" : "Новая операция"}</h2>
+      <h2>{draft.version ? "Редактирование операции" : "Новая операция"}</h2>
       <form
         onSubmit={(e) => {
           e.preventDefault();

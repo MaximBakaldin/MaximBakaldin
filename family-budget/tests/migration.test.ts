@@ -34,6 +34,18 @@ it("обновляет исходную базу, сохраняя операц�
     await db.exec(
       readFileSync("supabase/migrations/002_shared_budget.sql", "utf8"),
     );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261021081837_restrict_anonymous_access.sql",
+        "utf8",
+      ),
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261021110622_budget_features.sql",
+        "utf8",
+      ),
+    );
     await db.exec("set role authenticated");
     const row = (
       await db.query<{
