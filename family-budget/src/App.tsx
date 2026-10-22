@@ -142,7 +142,6 @@ function Workspace({ user }: { user: string }) {
   const [analysisView, setAnalysisView] = useState<"overview" | "operations">(
     "overview",
   );
-  const [allCategories, setAllCategories] = useState(false);
   const [detailCategory, setDetailCategory] = useState<string | null>(null);
   const [journalRange, setJournalRange] = useState<DateRange | undefined>();
   const [savingsEdit, setSavingsEdit] = useState<{
@@ -514,7 +513,6 @@ function Workspace({ user }: { user: string }) {
   const ranked = cats
     .filter((c) => c.spent > 0 || c.budget || c.pending)
     .sort((a, b) => b.spent - a.spent);
-  const top = allCategories ? ranked : ranked.slice(0, 4);
   const catMaximum = Math.max(
     1,
     ...ranked.flatMap((c) => [
@@ -757,7 +755,7 @@ function Workspace({ user }: { user: string }) {
               label="Общий бюджет"
             />
             <div className="category-bullets">
-              {top.map((c) => {
+              {ranked.map((c) => {
                 const limit = c.budget
                   ? parseMoney(c.budget.amount, true)
                   : null;
@@ -797,18 +795,7 @@ function Workspace({ user }: { user: string }) {
               </p>
             )}
             <div className="line">
-              {ranked.length > 4 ? (
-                <button
-                  className="tiny"
-                  onClick={() => setAllCategories(!allCategories)}
-                >
-                  {allCategories
-                    ? "Свернуть"
-                    : `Все категории (${ranked.length})`}
-                </button>
-              ) : (
-                <span />
-              )}
+              <span />
               <button className="tiny" onClick={() => navigate("history")}>
                 Анализ →
               </button>
@@ -1357,7 +1344,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.7.1</small>
+            <small>Версия 0.7.2</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
