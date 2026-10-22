@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../src/App";
-import { localSnapshot } from "../src/lib/demo";
+import { readAppearance } from "../src/lib/theme";
+import { DEMO_USER, localSnapshot } from "../src/lib/demo";
 import { currentMonth, shiftMonth } from "../src/lib/dates";
 import { dueDate } from "../src/lib/features";
 afterEach(() => {
@@ -90,7 +91,13 @@ describe("Новые сценарии", () => {
     ).toBe(true);
     await u.selectOptions(screen.getByLabelText("Тема"), "dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(localStorage.getItem("family-budget.theme")).toBe("dark");
+    expect(readAppearance(DEMO_USER).theme).toBe("dark");
+    await u.selectOptions(screen.getByLabelText("Цветовой стиль"), "forest");
+    expect(document.documentElement.dataset.style).toBe("forest");
+    expect(readAppearance(DEMO_USER)).toEqual({
+      theme: "dark",
+      style: "forest",
+    });
   });
   it("сохраняет накопления отдельно и отклоняет снятие сверх баланса", async () => {
     const u = userEvent.setup();

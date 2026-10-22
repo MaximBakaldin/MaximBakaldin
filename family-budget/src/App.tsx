@@ -48,13 +48,16 @@ const message = (e: unknown) =>
     : "Не удалось выполнить действие. Попробуйте ещё раз";
 
 export default function App() {
-  useEffect(watchTheme, []);
   const [auth, setAuth] = useState<{
     ready: boolean;
     user: string | null;
     recovery: boolean;
     error: string;
   }>({ ready: !configured, user: null, recovery: false, error: "" });
+  useEffect(
+    () => watchTheme(auth.user ?? (configured ? "guest" : local.DEMO_USER)),
+    [auth.user],
+  );
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -1216,7 +1219,7 @@ function Workspace({ user }: { user: string }) {
       {tab === "settings" && (
         <section>
           <h2 className="sr-only">Настройки приложения</h2>
-          <Appearance />
+          <Appearance user={user} />
           {owner && (
             <FamilySettings
               key={data.family.settings_version ?? 1}
@@ -1344,7 +1347,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.7.2</small>
+            <small>Версия 0.8.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

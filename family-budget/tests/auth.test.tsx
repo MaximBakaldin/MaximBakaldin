@@ -40,7 +40,12 @@ vi.mock("../src/lib/api", () => ({
   journal: mock.history,
 }));
 import App from "../src/App";
-afterEach(cleanup);
+import { saveAppearance } from "../src/lib/theme";
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.unstubAllGlobals();
+});
 const snapshot: Snapshot = {
   family: { id: "family-a", name: "Семья А", created_by: "A" },
   categories: [],
@@ -52,6 +57,25 @@ const snapshot: Snapshot = {
   revision: 0,
 };
 describe("Изоляция сессий", () => {
+  it("при смене аккаунта и выходе применяет личное оформление", async () => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    saveAppearance("A", { theme: "dark", style: "blue" });
+    saveAppearance("B", { theme: "light", style: "forest" });
+    mock.load.mockResolvedValue(null);
+    render(<App />);
+    await screen.findByText("Ваше общее пространство");
+    expect(document.documentElement.dataset.style).toBe("blue");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    await act(async () => mock.callback("SIGNED_IN", { user: { id: "B" } }));
+    expect(document.documentElement.dataset.style).toBe("forest");
+    expect(document.documentElement.dataset.theme).toBe("light");
+    await act(async () => mock.callback("SIGNED_OUT", null));
+    expect(document.documentElement.dataset.style).toBe("classic");
+  });
   it("немедленно убирает данные A при переходе к B, даже при ошибке загрузки B", async () => {
     mock.load.mockResolvedValue(snapshot);
     render(<App />);

@@ -1,28 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Category, Family, Run } from "../types";
 import { renameFamily, saveCategory } from "../lib/features";
-import { applyTheme, readTheme, type Theme } from "../lib/theme";
-export function Appearance() {
-  const [theme, setTheme] = useState(readTheme);
+import {
+  readAppearance,
+  saveAppearance,
+  subscribeAppearance,
+  styles,
+  type AppearancePreferences,
+  type ColorStyle,
+  type Theme,
+} from "../lib/theme";
+export function Appearance({ user }: { user: string }) {
+  const [appearance, setAppearance] = useState(() => readAppearance(user));
+  const [error, setError] = useState("");
+  useEffect(
+    () => subscribeAppearance(user, () => setAppearance(readAppearance(user))),
+    [user],
+  );
+  const change = (next: Partial<AppearancePreferences>) => {
+    try {
+      saveAppearance(user, { ...appearance, ...next });
+      setError("");
+    } catch {
+      setError(
+        "Не удалось сохранить оформление. Разрешите хранение данных сайта в браузере.",
+      );
+    }
+  };
   return (
     <article>
       <h3>Оформление</h3>
       <label>
+        Цветовой стиль
+        <select
+          value={appearance.style}
+          onChange={(e) => change({ style: e.target.value as ColorStyle })}
+        >
+          {styles.map((style) => (
+            <option key={style.id} value={style.id}>
+              {style.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="appearance-preview" aria-hidden="true">
+        <span className="appearance-swatch surface" />
+        <span className="appearance-swatch soft" />
+        <span className="appearance-swatch accent" />
+        <span className="appearance-swatch positive" />
+        <span className="appearance-swatch danger" />
+      </div>
+      <label>
         Тема
         <select
-          value={theme}
-          onChange={(e) => {
-            const v = e.target.value as Theme;
-            setTheme(v);
-            localStorage.setItem("family-budget.theme", v);
-            applyTheme(v);
-          }}
+          value={appearance.theme}
+          onChange={(e) => change({ theme: e.target.value as Theme })}
         >
           <option value="system">Как на устройстве</option>
           <option value="light">Светлая</option>
           <option value="dark">Тёмная</option>
         </select>
       </label>
+      <p className="hint">
+        Личный выбор для вашего аккаунта на этом устройстве.
+      </p>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
     </article>
   );
 }

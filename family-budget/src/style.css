@@ -1,5 +1,19 @@
 /* Theme tokens apply to every screen, including authentication. */
 :root {
+  --accent: #187b64;
+  --on-accent: #fff;
+  --chart: #54b99c;
+  --income-chart: #54b99c;
+  --expense-chart: #b69769;
+  --paid: #176550;
+  --paid-dot: #e4fff0;
+  --paid-over: #8d2938;
+  --pending: #b78b43;
+  --focus: #d89640;
+  --highlight: #173d35;
+  --on-highlight: #fff;
+  --muted-highlight: #c5ded2;
+  --highlight-track: #4b6b62;
   --bg: #f5f8f6;
   --surface: #fff;
   --text: #152d29;
@@ -95,18 +109,18 @@ article {
   box-shadow: 0 2px 7px #142d2408;
 }
 .hero {
-  background: #173d35;
-  color: white;
+  background: var(--highlight);
+  color: var(--on-highlight);
   padding: 23px;
 }
 .hero small {
-  color: #b8d4c9;
+  color: var(--muted-highlight);
 }
 .hero h2 {
   font-size: 32px;
 }
 .hero .bar {
-  background: #4b6b62;
+  background: var(--highlight-track);
 }
 .bar {
   background: var(--track);
@@ -117,7 +131,7 @@ article {
 }
 .bar span {
   display: block;
-  background: #54b99c;
+  background: var(--chart);
   height: 100%;
   border-radius: 10px;
 }
@@ -152,8 +166,8 @@ select {
   min-width: 0;
 }
 button {
-  background: #187b64;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
   border: 0;
   border-radius: 11px;
   padding: 13px 17px;
@@ -194,8 +208,8 @@ button:disabled {
   color: var(--accent-text);
 }
 .toggle button.selected {
-  background: #187b64;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .chips {
   display: grid;
@@ -211,8 +225,8 @@ button:disabled {
   padding: 8px;
 }
 .chips button.active {
-  background: #187b64;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .entry {
   align-items: flex-start;
@@ -302,7 +316,7 @@ select {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid #d89640;
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 button:disabled {
@@ -368,7 +382,7 @@ fieldset {
   font-size: 19px;
 }
 .bar span.over {
-  background: #df8c52;
+  background: var(--danger);
 }
 .success {
   background: var(--soft);
@@ -476,8 +490,8 @@ fieldset {
 nav button.nav-add {
   font-size: 27px;
   padding: 2px;
-  background: #187b64;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
   max-width: 52px;
   margin: 0 8px;
   border-radius: 15px;
@@ -655,13 +669,13 @@ label {
   font-size: 11px;
 }
 .metric-link {
-  background: #173d35;
-  color: #fff;
+  background: var(--highlight);
+  color: var(--on-highlight);
   text-align: left;
   font-weight: 400;
 }
 .metric-link small {
-  color: #c5ded2;
+  color: var(--muted-highlight);
 }
 .dashboard-budget {
   padding: 6px 12px;
@@ -797,7 +811,7 @@ label {
   padding: 6px 8px;
 }
 .payment-row.paid {
-  border-color: #39886b;
+  border-color: var(--positive);
 }
 .history-analysis {
   border-bottom: 1px solid var(--border);
@@ -891,12 +905,12 @@ nav {
   min-height: 22px;
 }
 .metric-grid .savings-metric {
-  background: #173d35;
-  color: #fff;
+  background: var(--highlight);
+  color: var(--on-highlight);
 }
 .savings-metric small,
 .savings-metric .help {
-  color: #c5ded2;
+  color: var(--muted-highlight);
 }
 .metric-value {
   padding: 0;
@@ -942,7 +956,7 @@ nav {
 .bullet-fill {
   display: block;
   height: 100%;
-  background: #54b99c;
+  background: var(--chart);
   border-radius: 3px;
 }
 .bullet.over .bullet-fill {
@@ -1004,11 +1018,11 @@ nav {
 }
 .income-key,
 .income-bar {
-  background: #54b99c;
+  background: var(--income-chart);
 }
 .expense-key,
 .expense-bar {
-  background: #b69769;
+  background: var(--expense-chart);
 }
 .month-chart {
   height: 174px;
@@ -1353,7 +1367,7 @@ nav button {
   cursor: pointer;
 }
 .month-control:focus-within {
-  outline: 2px solid #d89640;
+  outline: 2px solid var(--focus);
   border-radius: 8px;
 }
 .settings-sync {
@@ -1374,21 +1388,21 @@ nav button {
 }
 .bullet-paid,
 .paid-key {
-  background-color: #176550;
-  background-image: radial-gradient(#e4fff0 1px, transparent 1px);
+  background-color: var(--paid);
+  background-image: radial-gradient(var(--paid-dot) 1px, transparent 1px);
   background-size: 5px 5px;
 }
 .bullet.over .bullet-paid {
-  background-color: #8d2938;
+  background-color: var(--paid-over);
 }
 .bullet-pending,
 .pending-key {
   background: repeating-linear-gradient(
     135deg,
     transparent 0 3px,
-    #b78b43 3px 5px
+    var(--pending) 3px 5px
   );
-  border: 1px solid #b78b43;
+  border: 1px solid var(--pending);
 }
 .bullet-marker {
   z-index: 2;
@@ -1851,8 +1865,8 @@ nav button {
   overflow-wrap: anywhere;
 }
 .quick-categories button.selected {
-  background: #187b64;
-  color: white;
+  background: var(--accent);
+  color: var(--on-accent);
   box-shadow: inset 0 0 0 2px var(--accent-text);
 }
 
@@ -1987,4 +2001,31 @@ nav button {
 }
 .category-detail .category-drilldown small {
   max-width: none;
+}
+
+.appearance-preview {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+.appearance-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.appearance-swatch.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.appearance-swatch.soft {
+  background: var(--soft);
+}
+.appearance-swatch.accent {
+  background: var(--accent);
+}
+.appearance-swatch.positive {
+  background: var(--positive);
+}
+.appearance-swatch.danger {
+  background: var(--danger);
 }
