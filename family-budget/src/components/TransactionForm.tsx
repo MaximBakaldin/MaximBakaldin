@@ -80,7 +80,12 @@ export function TransactionForm({
     return (
       <section className="category-page">
         <div className="section-heading">
-          <button type="button" className="secondary" onClick={closeCategories}>
+          <button
+            autoFocus
+            type="button"
+            className="secondary"
+            onClick={closeCategories}
+          >
             ← Назад
           </button>
           <h2>Все категории</h2>
@@ -88,7 +93,6 @@ export function TransactionForm({
         <label>
           Поиск категории
           <input
-            autoFocus
             type="search"
             placeholder="Начните вводить название"
             value={query}
