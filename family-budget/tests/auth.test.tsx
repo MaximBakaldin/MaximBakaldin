@@ -37,7 +37,7 @@ vi.mock("../src/db", () => {
 });
 vi.mock("../src/lib/api", () => ({
   snapshot: mock.load,
-  history: mock.history,
+  journal: mock.history,
 }));
 import App from "../src/App";
 afterEach(cleanup);

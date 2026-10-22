@@ -3,7 +3,9 @@ import { obligations } from "./lib/obligations";
 import { Help } from "./components/Help";
 import { Bullet } from "./components/Bullet";
 import { Analysis } from "./components/Analysis";
-import { monthPoint, type MonthPoint } from "./lib/analysis";
+import { dateLabel, type DateRange } from "./lib/analysis";
+import { SpendingDetails } from "./components/SpendingDetails";
+import { SavingsTransferEditor } from "./components/SavingsTransferEditor";
 import {
   Appearance,
   CategorySettings,
@@ -11,12 +13,19 @@ import {
 } from "./components/Settings";
 import { RecurringPayments } from "./components/RecurringPayments";
 import { SavingsAccount } from "./components/SavingsAccount";
-import { signedCents } from "./lib/features";
+import { saveSavings, signedCents } from "./lib/features";
 import { watchTheme } from "./lib/theme";
 import { InstallApp } from "./components/InstallApp";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client, configurationError, configured, supabase } from "./db";
-import type { Draft, Snapshot, Transaction } from "./types";
+import type {
+  Draft,
+  Snapshot,
+  Transaction,
+  JournalEntry,
+  SavingsDraft,
+  SavingsKind,
+} from "./types";
 import { Auth } from "./components/Auth";
 import { BudgetRow } from "./components/BudgetRow";
 import { TransactionForm } from "./components/TransactionForm";
@@ -134,11 +143,15 @@ function Workspace({ user }: { user: string }) {
     "overview",
   );
   const [allCategories, setAllCategories] = useState(false);
-  const [trendLoading, setTrendLoading] = useState(true);
-  const [trendError, setTrendError] = useState("");
+  const [detailCategory, setDetailCategory] = useState<string | null>(null);
+  const [journalRange, setJournalRange] = useState<DateRange | undefined>();
+  const [savingsEdit, setSavingsEdit] = useState<{
+    draft: SavingsDraft;
+    name: string;
+  } | null>(null);
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<Snapshot | null>(null);
-  const [rows, setRows] = useState<Transaction[]>([]);
+  const [rows, setRows] = useState<JournalEntry[]>([]);
   const [count, setCount] = useState(0);
   const [ready, setReady] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -153,6 +166,7 @@ function Workspace({ user }: { user: string }) {
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
+  const [returnToBudget, setReturnToBudget] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => local.newDraft());
   const [familyName, setFamilyName] = useState("Наша семья");
   const [invite, setInvite] = useState("");
@@ -162,7 +176,6 @@ function Workspace({ user }: { user: string }) {
     family: string;
     rows: CategoryUsage[];
   }>({ family: "", rows: [] });
-  const [trend, setTrend] = useState<MonthPoint[]>([]);
 
   const refresh = useCallback(async () => {
     const request = ++generation.current;
@@ -182,13 +195,17 @@ function Workspace({ user }: { user: string }) {
         return;
       }
       const page = configured
-        ? await api.history(
+        ? await api.journal(
             snapshot.family.id,
             month,
-            { category, search },
+            { category, search, range: journalRange },
             offset,
           )
-        : local.localHistory(month, { category, search }, offset);
+        : local.localJournal(
+            month,
+            { category, search, range: journalRange },
+            offset,
+          );
       if (!alive.current || request !== generation.current) return;
       setData(snapshot);
       setRows(page.rows);
@@ -208,7 +225,7 @@ function Workspace({ user }: { user: string }) {
     } finally {
       if (alive.current && request === generation.current) setRefreshing(false);
     }
-  }, [month, category, search, offset]);
+  }, [month, category, search, offset, journalRange]);
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -299,40 +316,6 @@ function Workspace({ user }: { user: string }) {
     };
   }, [tab, familyId, data?.revision]);
 
-  useEffect(() => {
-    if (tab !== "history" || !familyId) return;
-    let active = true;
-    setTrendLoading(true);
-    setTrendError("");
-    void Promise.all(
-      Array.from({ length: 6 }, (_, i) => shiftMonth(month, i - 5))
-        .filter(validMonth)
-        .map(async (m) => {
-          const snapshot = configured
-            ? await api.snapshot(m)
-            : local.localSnapshot(m);
-          if (!snapshot || snapshot.family.id !== familyId)
-            throw new Error("Доступ к семье изменился. Обновите данные");
-          return monthPoint(m, snapshot);
-        }),
-    )
-      .then((items) => {
-        if (active) setTrend(items);
-      })
-      .catch((e) => {
-        if (active) {
-          setTrend([]);
-          setTrendError(message(e));
-        }
-      })
-      .finally(() => {
-        if (active) setTrendLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [tab, familyId, month, data?.revision]);
-
   async function run(
     action: () => Promise<void> | void,
     success = "",
@@ -363,8 +346,12 @@ function Workspace({ user }: { user: string }) {
     }
   }
   function navigate(next: Tab) {
-    if (next === "add") setDraft(local.newDraft());
+    if (next === "add") {
+      setDraft(local.newDraft());
+      setReturnToBudget(false);
+    }
     if (next === "history") setAnalysisView("overview");
+    setDetailCategory(null);
     setTab(next);
     setNotice("");
   }
@@ -375,6 +362,7 @@ function Workspace({ user }: { user: string }) {
       setData(null);
       setRows([]);
       setOffset(0);
+      setJournalRange(undefined);
       setMonth(value);
     }
   }
@@ -535,6 +523,7 @@ function Workspace({ user }: { user: string }) {
     ]),
   );
   function editTransaction(t: Transaction) {
+    setReturnToBudget(false);
     setDraft({
       id: t.id,
       version: t.version,
@@ -611,7 +600,7 @@ function Workspace({ user }: { user: string }) {
         changeMonth(d.occurred_on.slice(0, 7));
       setDraft(local.newDraft());
       setAnalysisView("operations");
-      setTab("history");
+      setTab(returnToBudget ? "budget" : "history");
     }
     return ok;
   }
@@ -638,7 +627,7 @@ function Workspace({ user }: { user: string }) {
   }
 
   return (
-    <main className="shell">
+    <main className={`shell ${tab === "add" ? "operation-shell" : ""}`}>
       <h1 className="sr-only">
         {tab === "home"
           ? "Всё под контролем"
@@ -749,12 +738,17 @@ function Workspace({ user }: { user: string }) {
                 Лимиты →
               </button>
             </div>
-            <div className="line spending-total">
+            <button
+              type="button"
+              className="line spending-total"
+              aria-label="Расшифровка общего бюджета"
+              onClick={() => setDetailCategory("all")}
+            >
               <b>{currency(spent)}</b>
               <small>
                 {planned ? "из " + currency(plan) : "Лимиты не заданы"}
               </small>
-            </div>
+            </button>
             <Bullet
               actual={spent}
               limit={planned ? plan : null}
@@ -762,43 +756,19 @@ function Workspace({ user }: { user: string }) {
               pending={requiredLeft}
               label="Общий бюджет"
             />
-            <div className="line spending-status">
-              <small className={planned && spent > plan ? "danger" : ""}>
-                {planned
-                  ? (spent > plan ? "Превышение: " : "Осталось: ") +
-                    currency(Math.abs(plan - spent))
-                  : "Задайте бюджет по категориям"}
-              </small>
-              <button
-                className="tiny"
-                onClick={() => {
-                  setBudgetView("recurring");
-                  navigate("budget");
-                }}
-              >
-                К оплате: {currency(requiredLeft)} ↗
-              </button>
-            </div>
-            <div className="obligation-legend">
-              <span>
-                <i className="paid-key" />
-                Обязательные оплачено
-              </span>
-              <span>
-                <i className="pending-key" />К оплате
-              </span>
-            </div>
-            <small className="obligation-summary">
-              Оплачено {currency(requiredPaid)} · к оплате{" "}
-              {currency(requiredLeft)}
-            </small>
             <div className="category-bullets">
               {top.map((c) => {
                 const limit = c.budget
                   ? parseMoney(c.budget.amount, true)
                   : null;
                 return (
-                  <div className="category-bullet" key={c.id}>
+                  <button
+                    type="button"
+                    className="category-bullet"
+                    key={c.id}
+                    aria-label={`Расшифровка: ${c.name}`}
+                    onClick={() => setDetailCategory(c.id)}
+                  >
                     <div className="line">
                       <span>{c.name}</span>
                       <b
@@ -817,19 +787,7 @@ function Workspace({ user }: { user: string }) {
                       pending={c.pending}
                       label={c.name}
                     />
-                    <small>
-                      {limit === null
-                        ? "Без лимита"
-                        : "Лимит " + currency(limit)}
-                      {limit !== null && c.spent > limit ? " · превышен" : ""}
-                    </small>
-                    {(c.paid > 0 || c.pending > 0) && (
-                      <small className="obligation-summary">
-                        Обязательные: ✓ {currency(c.paid)} · к оплате{" "}
-                        {currency(c.pending)}
-                      </small>
-                    )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -856,6 +814,45 @@ function Workspace({ user }: { user: string }) {
               </button>
             </div>
           </article>
+          {detailCategory &&
+            (() => {
+              const c = cats.find((c) => c.id === detailCategory);
+              if (!c && detailCategory !== "all") return null;
+              return (
+                <SpendingDetails
+                  name={c?.name ?? "Общий бюджет"}
+                  spent={c?.spent ?? spent}
+                  limit={
+                    c
+                      ? c.budget
+                        ? parseMoney(c.budget.amount, true)
+                        : null
+                      : planned
+                        ? plan
+                        : null
+                  }
+                  paid={c?.paid ?? requiredPaid}
+                  pending={c?.pending ?? requiredLeft}
+                  items={(data.recurring ?? []).filter(
+                    (r) =>
+                      (r.active || r.payment) &&
+                      (!c ||
+                        (r.payment ? r.payment.category_id : r.category_id) ===
+                          c.id),
+                  )}
+                  onClose={() => setDetailCategory(null)}
+                  onOperations={() => {
+                    setCategory(c?.id ?? "");
+                    setSearch("");
+                    setOffset(0);
+                    setJournalRange(undefined);
+                    setDetailCategory(null);
+                    setTab("history");
+                    setAnalysisView("operations");
+                  }}
+                />
+              );
+            })()}
         </section>
       )}
       {tab === "add" && (
@@ -873,14 +870,14 @@ function Workspace({ user }: { user: string }) {
           onCancel={() => {
             setDraft(local.newDraft());
             setAnalysisView("operations");
-            setTab("history");
+            setTab(returnToBudget ? "budget" : "history");
           }}
         />
       )}
       {tab === "history" && (
         <section>
           <h2 className="sr-only">История операций</h2>
-          {monthPicker}
+          {analysisView === "operations" && monthPicker}
           <div className="subnav" role="group" aria-label="Разделы анализа">
             {(
               [
@@ -900,13 +897,12 @@ function Workspace({ user }: { user: string }) {
           </div>
           {analysisView !== "operations" && (
             <Analysis
-              key={month}
-              points={trend}
+              family={data.family.id}
+              month={month}
+              revision={data.revision}
               cats={data.categories}
-              loading={trendLoading}
-              error={trendError}
-              onOperations={(id, selectedMonth) => {
-                if (selectedMonth !== month) changeMonth(selectedMonth);
+              onOperations={(id, range) => {
+                setJournalRange(range);
                 setCategory(id);
                 setSearch("");
                 setOffset(0);
@@ -916,6 +912,23 @@ function Workspace({ user }: { user: string }) {
           )}
           {analysisView === "operations" && (
             <>
+              {journalRange && (
+                <div className="line">
+                  <small>
+                    {dateLabel(journalRange.from)} —{" "}
+                    {dateLabel(journalRange.to)}
+                  </small>
+                  <button
+                    className="tiny"
+                    onClick={() => {
+                      setJournalRange(undefined);
+                      setOffset(0);
+                    }}
+                  >
+                    Показать месяц
+                  </button>
+                </div>
+              )}
               <div className="filters">
                 <label>
                   Категория
@@ -951,8 +964,8 @@ function Workspace({ user }: { user: string }) {
                 <summary>Экспорт операций CSV</summary>
                 <article>
                   <p>
-                    Все операции за {monthLabel(month)}, независимо от фильтра и
-                    открытой страницы истории.
+                    Доходы и расходы за {monthLabel(month)}, независимо от
+                    фильтра и открытой страницы истории.
                   </p>
                   <button disabled={busy} onClick={() => void exportCsv()}>
                     Скачать CSV
@@ -960,51 +973,121 @@ function Workspace({ user }: { user: string }) {
                 </article>
               </details>
               <p className="hint">Найдено операций: {count}</p>
-              {rows.map((t) => (
-                <article className="entry" key={t.id}>
-                  <div>
-                    <b>
-                      {data.categories.find((c) => c.id === t.category_id)
-                        ?.name ?? "Категория"}
-                    </b>
-                    <small>
-                      {t.occurred_on} · {author(t.user_id)}
-                    </small>
-                    {t.comment && <p className="comment">{t.comment}</p>}
-                    {t.version > 1 && (
-                      <small>Изменено: {author(t.updated_by)}</small>
-                    )}
-                  </div>
-                  <div className="entryright">
-                    <b className={t.kind === "income" ? "green" : ""}>
-                      {t.kind === "income" ? "+" : "−"}
-                      {currency(parseMoney(t.amount))}
-                    </b>
+              {rows.map((t) =>
+                t.source === "savings" ? (
+                  <article className="entry" key={`savings-${t.id}`}>
                     <div>
-                      <button
-                        className="tiny"
-                        disabled={busy}
-                        onClick={() => editTransaction(t)}
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        className="tiny danger"
-                        disabled={busy}
-                        onClick={() => {
-                          if (confirm("Удалить эту операцию?"))
-                            void run(async () => {
-                              if (configured) await api.deleteTransaction(t);
-                              else local.localDelete(t);
-                            }, "Операция удалена");
-                        }}
-                      >
-                        Удалить
-                      </button>
+                      <b>
+                        {t.kind === "withdrawal"
+                          ? "Снятие со счёта"
+                          : t.kind === "deposit"
+                            ? "Пополнение счёта"
+                            : "Начальный остаток"}{" "}
+                        · {t.account_name}
+                      </b>
+                      <small>
+                        {t.occurred_on} · {author(t.user_id)}
+                      </small>
+                      {t.comment && <p className="comment">{t.comment}</p>}
+                      <small>Движение накоплений</small>
                     </div>
-                  </div>
-                </article>
-              ))}
+                    <div className="entryright">
+                      <b>
+                        {t.kind === "withdrawal" ? "−" : "+"}
+                        {currency(parseMoney(t.amount))}
+                      </b>
+                      <div>
+                        <button
+                          className="tiny"
+                          disabled={busy}
+                          onClick={() =>
+                            setSavingsEdit({
+                              name: t.account_name,
+                              draft: {
+                                ...t,
+                                kind: t.kind as SavingsKind,
+                                amount: String(t.amount),
+                                comment: t.comment ?? "",
+                              },
+                            })
+                          }
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          className="tiny danger"
+                          disabled={busy}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Удалить движение? Проценты будут пересчитаны.",
+                              )
+                            )
+                              void run(async () => {
+                                await saveSavings(
+                                  data.family.id,
+                                  {
+                                    ...t,
+                                    kind: t.kind as SavingsKind,
+                                    amount: String(t.amount),
+                                    comment: t.comment ?? "",
+                                  },
+                                  true,
+                                );
+                              }, "Движение удалено");
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ) : (
+                  <article className="entry" key={t.id}>
+                    <div>
+                      <b>
+                        {data.categories.find((c) => c.id === t.category_id)
+                          ?.name ?? "Категория"}
+                      </b>
+                      <small>
+                        {t.occurred_on} · {author(t.user_id)}
+                      </small>
+                      {t.comment && <p className="comment">{t.comment}</p>}
+                      {t.version > 1 && (
+                        <small>Изменено: {author(t.updated_by)}</small>
+                      )}
+                    </div>
+                    <div className="entryright">
+                      <b className={t.kind === "income" ? "green" : ""}>
+                        {t.kind === "income" ? "+" : "−"}
+                        {currency(parseMoney(t.amount))}
+                      </b>
+                      <div>
+                        <button
+                          className="tiny"
+                          disabled={busy}
+                          onClick={() => editTransaction(t)}
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          className="tiny danger"
+                          disabled={busy}
+                          onClick={() => {
+                            if (confirm("Удалить эту операцию?"))
+                              void run(async () => {
+                                if (configured) await api.deleteTransaction(t);
+                                else local.localDelete(t);
+                              }, "Операция удалена");
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ),
+              )}
               {!rows.length && (
                 <div className="empty">
                   <h3>Здесь пока пусто</h3>
@@ -1069,7 +1152,10 @@ function Workspace({ user }: { user: string }) {
               cats={data.categories}
               busy={busy}
               run={run}
-              onEdit={editTransaction}
+              onEdit={(t) => {
+                editTransaction(t);
+                setReturnToBudget(true);
+              }}
               onDelete={removeTransaction}
             />
           )}
@@ -1271,7 +1357,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.6.2</small>
+            <small>Версия 0.7.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
@@ -1290,27 +1376,39 @@ function Workspace({ user }: { user: string }) {
           )}
         </section>
       )}
-      <nav aria-label="Основная навигация">
-        {(
-          [
-            ["home", "Главная"],
-            ["budget", "Бюджет"],
-            ["add", "+"],
-            ["history", "Анализ"],
-            ["settings", "Настройки"],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            aria-label={key === "add" ? "Добавить операцию" : label}
-            aria-current={tab === key ? "page" : undefined}
-            className={`${tab === key ? "active" : ""} ${key === "add" ? "nav-add" : ""}`}
-            onClick={() => navigate(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      {savingsEdit && (
+        <SavingsTransferEditor
+          family={data.family.id}
+          initial={savingsEdit.draft}
+          accountName={savingsEdit.name}
+          busy={busy}
+          run={run}
+          onClose={() => setSavingsEdit(null)}
+        />
+      )}
+      {tab !== "add" && (
+        <nav aria-label="Основная навигация">
+          {(
+            [
+              ["home", "Главная"],
+              ["budget", "Бюджет"],
+              ["add", "+"],
+              ["history", "Анализ"],
+              ["settings", "Настройки"],
+            ] as [Tab, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              aria-label={key === "add" ? "Добавить операцию" : label}
+              aria-current={tab === key ? "page" : undefined}
+              className={`${tab === key ? "active" : ""} ${key === "add" ? "nav-add" : ""}`}
+              onClick={() => navigate(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
     </main>
   );
 }

@@ -30,14 +30,13 @@ const usage = [
   { category_id: "6", uses: "8" },
   { category_id: "8", uses: 1000 },
 ];
-it("даёт шесть активных категорий по числу операций, дополняет список при короткой истории", () => {
+it("даёт пять активных категорий по числу операций, дополняет список при короткой истории", () => {
   expect(popularCategories(cats, usage).map((c) => c.id)).toEqual([
     "7",
     "6",
     "0",
     "1",
     "2",
-    "3",
   ]);
   expect(popularCategories(cats.slice(0, 2), []).map((c) => c.id)).toEqual([
     "0",
@@ -96,13 +95,18 @@ it("быстрая кнопка синхронизирует список, не 
   expect(within(group).getAllByRole("button")).toHaveLength(6);
   await u.click(within(group).getByRole("button", { name: "Категория 7" }));
   expect(save).not.toHaveBeenCalled();
-  expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe(
+  expect(screen.getByText("Категория: Категория 7")).toBeTruthy();
+  await u.click(screen.getByRole("button", { name: "Ещё" }));
+  const page = screen.getByRole("group", {
+    name: "Все категории по популярности",
+  });
+  expect(within(page).getAllByRole("button")[0].textContent).toContain(
     "Категория 7",
   );
-  await u.click(screen.getByRole("combobox"));
-  await u.click(screen.getByRole("option", { name: "Категория 6" }));
+  await u.click(within(page).getByRole("button", { name: /Категория 6/ }));
+  const quick = screen.getByRole("group", { name: "Быстрый выбор категории" });
   expect(
-    within(group)
+    within(quick)
       .getByRole("button", { name: "Категория 6" })
       .getAttribute("aria-pressed"),
   ).toBe("true");
@@ -112,11 +116,11 @@ it("быстрая кнопка синхронизирует список, не 
   );
   await u.click(screen.getByRole("button", { name: "Доход", exact: true }));
   expect(
-    within(group)
+    within(quick)
       .getAllByRole("button")
       .map((b) => b.textContent),
-  ).toEqual(["Зарплата"]);
-  await u.click(within(group).getByRole("button", { name: "Зарплата" }));
+  ).toEqual(["Зарплата", "Ещё"]);
+  await u.click(within(quick).getByRole("button", { name: "Зарплата" }));
   await u.click(screen.getByRole("button", { name: "Сохранить", exact: true }));
   expect(save).toHaveBeenLastCalledWith(
     expect.objectContaining({ category_id: "salary", kind: "income" }),

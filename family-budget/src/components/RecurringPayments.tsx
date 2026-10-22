@@ -1,5 +1,5 @@
 import { Help } from "./Help";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
   Category,
   Recurring,
@@ -30,30 +30,42 @@ export function RecurringPayments({
   onDelete: (t: Transaction) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState<RecurringDraft | null>(null);
-  const [pay, setPay] = useState<Recurring | null>(null);
-  const [payError, setPayError] = useState("");
-  const [date, setDate] = useState(today());
+  const [payError, setPayError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [inactive, setInactive] = useState(false);
-  const paymentForm = useRef<HTMLFormElement>(null);
-  const confirmButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!pay) return;
-    paymentForm.current?.scrollIntoView?.({
-      block: "nearest",
-      behavior: "instant",
-    });
-    confirmButton.current?.focus({ preventScroll: true });
-  }, [pay]);
+  const paying = useRef(false);
   const visible = items.filter((r) => r.active || r.payment);
   const unpaid = visible.filter((r) => !r.payment);
   const paid = visible.filter((r) => r.payment);
   const amount = (r: Recurring) => parseMoney(r.payment?.amount ?? r.amount);
   const sum = total(visible.map(amount)),
     done = total(paid.map(amount));
-  function startPay(r: Recurring) {
-    setPayError("");
-    setPay(r);
-    setDate(today().startsWith(month) ? today() : dueDate(month, r.due_day));
+  async function startPay(r: Recurring) {
+    if (paying.current || busy) return;
+    paying.current = true;
+    setPayError(null);
+    try {
+      await run(async () => {
+        try {
+          await payRecurring(
+            family,
+            month,
+            r,
+            today().startsWith(month) ? today() : dueDate(month, r.due_day),
+          );
+        } catch (e) {
+          setPayError({
+            id: r.id,
+            message: e instanceof Error ? e.message : "Не удалось оплатить",
+          });
+          throw e;
+        }
+      }, "Оплата учтена в расходах");
+    } finally {
+      paying.current = false;
+    }
   }
   return (
     <section className="recurring-payments">
@@ -230,14 +242,14 @@ export function RecurringPayments({
                           confirm("Отменить оплату и удалить связанный расход?")
                         )
                           void onDelete(r.payment);
-                      } else startPay(r);
+                      } else void startPay(r);
                     }}
                   >
                     {r.payment ? "✓ Оплачено · отменить" : "Оплатить"}
                   </button>
                   {r.payment && (
                     <button className="tiny" onClick={() => onEdit(r.payment!)}>
-                      Изменить операцию
+                      Изменить оплату
                     </button>
                   )}
                   <button
@@ -245,7 +257,7 @@ export function RecurringPayments({
                     disabled={busy}
                     onClick={() => setDraft(r)}
                   >
-                    Редактировать
+                    Редактировать платёж
                   </button>
                   <button
                     className="tiny danger"
@@ -267,59 +279,10 @@ export function RecurringPayments({
                     Удалить
                   </button>
                 </div>
-                {pay?.id === r.id && !r.payment && (
-                  <form
-                    className="editor inline-payment"
-                    ref={paymentForm}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void run(async () => {
-                        try {
-                          await payRecurring(family, month, pay, date);
-                        } catch (e) {
-                          setPayError(
-                            e instanceof Error
-                              ? e.message
-                              : "Не удалось оплатить",
-                          );
-                          throw e;
-                        }
-                      }, "Оплата учтена в расходах").then((ok) => {
-                        if (ok) setPay(null);
-                      });
-                    }}
-                  >
-                    <h3>Оплата: {pay.name}</h3>
-                    {payError && (
-                      <p className="error" role="alert">
-                        {payError}
-                      </p>
-                    )}
-                    <b>{currency(parseMoney(pay.amount))}</b>
-                    <label>
-                      Дата оплаты
-                      <input
-                        required
-                        type="date"
-                        min={month + "-01"}
-                        max={dueDate(month, 31)}
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                      />
-                    </label>
-                    <div className="actions">
-                      <button ref={confirmButton} disabled={busy}>
-                        Подтвердить оплату
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => setPay(null)}
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </form>
+                {payError?.id === r.id && (
+                  <p className="error" role="alert">
+                    {payError.message}
+                  </p>
                 )}
               </article>
             ))}

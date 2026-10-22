@@ -95,7 +95,6 @@ it("резервирует неоплаченные обязательства, 
       .getAttribute("aria-pressed"),
   ).toBe("true");
   await u.click(screen.getByRole("button", { name: "Оплатить Аренда" }));
-  await u.click(screen.getByRole("button", { name: "Подтвердить оплату" }));
   await screen.findByText("Оплата учтена в расходах");
   await u.click(within(nav).getByRole("button", { name: "Главная" }));
   expect((await freeAmount()).textContent).toBe(currency(50000));

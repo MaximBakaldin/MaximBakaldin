@@ -1,3 +1,5 @@
+import type { AnalysisRow, DateRange } from "./analysis";
+import type { JournalEntry } from "../types";
 import type { CategoryUsage } from "./categories";
 import { client } from "../db";
 import type { Draft, HistoryFilter, Snapshot, Transaction } from "../types";
@@ -90,3 +92,30 @@ export async function exportHistory(
 
 export const popularCategories = (family: string) =>
   rpc<CategoryUsage[]>("popular_categories", { p_household: family });
+
+export const analysis = (
+  family: string,
+  range: DateRange | null,
+  daily: boolean,
+) =>
+  rpc<AnalysisRow[]>("budget_analysis", {
+    p_household: family,
+    p_from: range?.from ?? null,
+    p_to: range?.to ?? null,
+    p_daily: daily,
+  });
+export const journal = (
+  family: string,
+  month: string,
+  filter: HistoryFilter,
+  offset: number,
+) =>
+  rpc<{ rows: JournalEntry[]; count: number }>("budget_journal", {
+    p_household: family,
+    p_from: filter.range?.from ?? month + "-01",
+    p_to: filter.range?.to ?? monthBounds(month).end,
+    p_end_exclusive: !filter.range,
+    p_category: filter.category || null,
+    p_search: filter.search.trim(),
+    p_offset: offset,
+  });

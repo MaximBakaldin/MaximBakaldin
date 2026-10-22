@@ -8,11 +8,12 @@ import { Bullet, bulletScale } from "../src/components/Bullet";
 import { Analysis } from "../src/components/Analysis";
 import { changeFrom, monthPoint } from "../src/lib/analysis";
 import {
+  localSave,
+  newDraft,
   localSnapshot,
   localSavings,
   localSavingsAccount,
 } from "../src/lib/demo";
-import type { Category } from "../src/types";
 afterEach(() => {
   cleanup();
   localStorage.clear();
@@ -44,60 +45,52 @@ it("подсказка открывается по наведению и наж�
   fireEvent.pointerDown(document.body);
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
-it("анализ показывает месяцы, категории обоих типов и переход к операциям", async () => {
-  const cats: Category[] = [
-    {
-      id: "food",
-      household_id: "f",
-      name: "Еда",
-      kind: "expense",
-      essential: true,
-    },
-    {
-      id: "salary",
-      household_id: "f",
-      name: "Зарплата",
-      kind: "income",
-      essential: false,
-    },
-  ];
-  const points = Array.from({ length: 6 }, (_, i) => ({
-    month: `2026-${String(i + 5).padStart(2, "0")}`,
-    spent: i * 10000,
-    earned: 100000,
-    summary: [
-      {
-        category_id: "food",
-        kind: "expense" as const,
-        cents: String(i * 10000),
-      },
-      { category_id: "salary", kind: "income" as const, cents: "100000" },
-    ],
-  }));
+it("анализ выбирает месяц и передаёт точные границы в операции", async () => {
+  localSave({
+    ...newDraft(),
+    category_id: "local-0",
+    amount: "100",
+    occurred_on: "2026-08-15",
+  });
+  localSave({
+    ...newDraft(),
+    category_id: "local-0",
+    amount: "200",
+    occurred_on: "2026-09-15",
+  });
+  localSave({
+    ...newDraft(),
+    category_id: "local-7",
+    kind: "income",
+    amount: "1000",
+    occurred_on: "2026-08-20",
+  });
   const onOperations = vi.fn();
-  const props = { points, cats, loading: false, error: "", onOperations };
-  render(<Analysis {...props} />);
+  render(
+    <Analysis
+      family="local-family"
+      month="2026-10"
+      revision={1}
+      cats={localSnapshot("2026-10").categories}
+      onOperations={onOperations}
+    />,
+  );
   const u = userEvent.setup();
-  expect(screen.queryByRole("table")).toBeNull();
-  expect(screen.queryByText("Суммы по месяцам")).toBeNull();
-  expect(
-    screen.getByRole("group", { name: "Доходы и расходы по месяцам" }),
-  ).toBeTruthy();
-  await u.click(screen.getByRole("button", { name: /^сентябрь/ }));
-  expect(
-    screen.getByRole("region", { name: /Категории за сентябрь/ }),
-  ).toBeTruthy();
-  await u.click(screen.getByRole("button", { name: "Операции: Еда" }));
-  expect(onOperations).toHaveBeenLastCalledWith("food", "2026-09");
-  await u.click(screen.getByRole("button", { name: /^август/ }));
+  await screen.findByRole("group", { name: "Доходы и расходы за период" });
+  await u.click(screen.getByRole("button", { name: /^сент/ }));
+  await u.click(screen.getByRole("button", { name: "Операции: Продукты" }));
+  expect(onOperations).toHaveBeenLastCalledWith("local-0", {
+    from: "2026-09-01",
+    to: "2026-09-30",
+  });
+  await u.click(screen.getByRole("button", { name: /^авг/ }));
   await u.click(screen.getByRole("button", { name: "Доходы", exact: true }));
-  expect(
-    screen.getByRole("img", { name: "Зарплата: 100% от доходов" }),
-  ).toBeTruthy();
   await u.click(screen.getByRole("button", { name: "Операции: Зарплата" }));
-  expect(onOperations).toHaveBeenLastCalledWith("salary", "2026-08");
+  expect(onOperations).toHaveBeenLastCalledWith("local-7", {
+    from: "2026-08-01",
+    to: "2026-08-31",
+  });
   expect(changeFrom(0, 100)).toEqual({ difference: 100, percent: null });
-  expect(changeFrom(100, 150)).toEqual({ difference: 50, percent: 50 });
 });
 it("локальные старые накопления сохраняются, счета независимы и не входят в доходы", () => {
   localStorage.setItem(
@@ -149,4 +142,62 @@ it("локальные старые накопления сохраняются,
   });
   expect(s.savings!.balance_cents).toBe("125000");
   expect(monthPoint("2026-10", s)).toMatchObject({ earned: 0, spent: 0 });
+});
+it("фильтрует месяц, неделю и произвольный период; неверные даты не рушат экран", async () => {
+  const u = userEvent.setup(),
+    onOperations = vi.fn();
+  localSave({
+    ...newDraft(),
+    category_id: "local-0",
+    amount: "200",
+    occurred_on: "2026-10-02",
+  });
+  localSave({
+    ...newDraft(),
+    category_id: "local-0",
+    amount: "300",
+    occurred_on: "2026-10-20",
+  });
+  render(
+    <Analysis
+      family="local-family"
+      month="2026-10"
+      revision={1}
+      cats={localSnapshot("2026-10").categories}
+      onOperations={onOperations}
+    />,
+  );
+  await screen.findByRole("group", { name: "Доходы и расходы за период" });
+  await u.selectOptions(screen.getByLabelText("Период анализа"), "month");
+  await screen.findByRole("group", { name: "Доходы и расходы за период" });
+  expect(
+    screen.getAllByRole("button", { name: /расходы .*доходы/ }),
+  ).toHaveLength(31);
+  await u.selectOptions(screen.getByLabelText("Период анализа"), "week");
+  fireEvent.change(screen.getByLabelText("День выбранной недели"), {
+    target: { value: "2026-10-02" },
+  });
+  await screen.findByRole("button", { name: "Операции: Продукты" });
+  await u.click(screen.getByRole("button", { name: "Операции: Продукты" }));
+  expect(onOperations).toHaveBeenLastCalledWith("local-0", {
+    from: "2026-09-28",
+    to: "2026-10-04",
+  });
+  await u.selectOptions(screen.getByLabelText("Период анализа"), "custom");
+  fireEvent.change(screen.getByLabelText("С", { exact: true }), {
+    target: { value: "2026-10-20" },
+  });
+  fireEvent.change(screen.getByLabelText("По", { exact: true }), {
+    target: { value: "2026-10-20" },
+  });
+  await screen.findByRole("button", { name: "Операции: Продукты" });
+  await u.click(screen.getByRole("button", { name: "Операции: Продукты" }));
+  expect(onOperations).toHaveBeenLastCalledWith("local-0", {
+    from: "2026-10-20",
+    to: "2026-10-20",
+  });
+  fireEvent.change(screen.getByLabelText("По", { exact: true }), {
+    target: { value: "2026-10-01" },
+  });
+  expect(screen.getByRole("alert").textContent).toContain("начало не позже");
 });

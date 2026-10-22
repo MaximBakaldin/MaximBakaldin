@@ -62,7 +62,14 @@ export type Draft = {
   comment: string;
   version: number;
 };
-export type HistoryFilter = { category: string; search: string };
+export type HistoryFilter = {
+  category: string;
+  search: string;
+  range?: { from: string; to: string };
+};
+export type JournalEntry =
+  | (Transaction & { source: "transaction" })
+  | (SavingsEntry & { source: "savings"; account_name: string });
 
 export type Recurring = {
   id: string;

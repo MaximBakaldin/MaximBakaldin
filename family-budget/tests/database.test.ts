@@ -732,3 +732,91 @@ it("популярность считает операции обоих учас
       .rows,
   ).toEqual([]);
 });
+
+it("анализ считает произвольные даты без лимита 1000 строк и изолирует семьи", async () => {
+  await db.exec("reset role");
+  await db.query(
+    "insert into public.transactions(household_id,user_id,updated_by,category_id,kind,amount,occurred_on) select $1,$2,$2,$3,'expense',1.01,'2020-01-01'::date+g from generate_series(0,1099) g",
+    [family, A, category],
+  );
+  await as(A);
+  const all = await value<{ period: string; cents: string }[]>(
+    "select public.budget_analysis($1,null,null,true) as v",
+    [family],
+  );
+  expect(all).toHaveLength(1100);
+  expect(all.every((r) => r.cents === "101")).toBe(true);
+  const range = await value<{ cents: string }[]>(
+    "select public.budget_analysis($1,'2020-01-01','2020-01-02',false) as v",
+    [family],
+  );
+  expect(range[0].cents).toBe("202");
+  await as(C);
+  expect(
+    await value("select public.budget_analysis($1,null,null,false) as v", [
+      family,
+    ]),
+  ).toEqual([]);
+  await db.exec("reset role; set role anon");
+  await expect(
+    value("select public.budget_analysis($1,null,null,false) as v", [family]),
+  ).rejects.toThrow(/permission denied/);
+});
+it("общий журнал объединяет движения счетов с расходами, фильтрует границы и закрыт другой семье", async () => {
+  await save();
+  await value(
+    "select public.save_savings($1,gen_random_uuid(),0,'opening',1000,'2026-10-01',null,false) as v",
+    [family],
+  );
+  await value(
+    "select public.save_savings($1,gen_random_uuid(),0,'withdrawal',100,'2026-10-21','100% наличные',false) as v",
+    [family],
+  );
+  type Page = {
+    count: number;
+    rows: { source: string; kind: string; account_name?: string }[];
+  };
+  const page = await value<Page>(
+    "select public.budget_journal($1,'2026-10-21','2026-10-21',false,null,'',0) as v",
+    [family],
+  );
+  expect(page.count).toBe(2);
+  expect(page.rows.map((r) => r.source).sort()).toEqual([
+    "savings",
+    "transaction",
+  ]);
+  expect(page.rows.find((r) => r.source === "savings")?.account_name).toBe(
+    "Накопления",
+  );
+  expect(
+    (
+      await value<Page>(
+        "select public.budget_journal($1,'2026-10-01','2026-11-01',true,$2,'',0) as v",
+        [family, category],
+      )
+    ).count,
+  ).toBe(1);
+  expect(
+    (
+      await value<Page>(
+        "select public.budget_journal($1,'2026-10-01','2026-11-01',true,null,'100%',0) as v",
+        [family],
+      )
+    ).count,
+  ).toBe(1);
+  await as(C);
+  expect(
+    (
+      await value<Page>(
+        "select public.budget_journal($1,'2026-10-01','2026-11-01') as v",
+        [family],
+      )
+    ).count,
+  ).toBe(0);
+  await db.exec("reset role; set role anon");
+  await expect(
+    value("select public.budget_journal($1,'2026-10-01','2026-11-01') as v", [
+      family,
+    ]),
+  ).rejects.toThrow(/permission denied/);
+});

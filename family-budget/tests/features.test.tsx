@@ -44,7 +44,6 @@ describe("Новые сценарии", () => {
     await u.click(screen.getByRole("button", { name: "Сохранить платёж" }));
     await screen.findByText("Обязательный платёж сохранён");
     await u.click(screen.getByRole("button", { name: "Оплатить Интернет" }));
-    await u.click(screen.getByRole("button", { name: "Подтвердить оплату" }));
     await screen.findByText("Оплата учтена в расходах");
     expect(
       localSnapshot(currentMonth()).summary.find(
@@ -142,8 +141,9 @@ describe("Новые сценарии", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "120");
-    await u.click(screen.getByRole("combobox", { name: "Категория" }));
-    await u.click(screen.getByRole("option", { name: "Продукты" }));
+    await u.click(
+      screen.getByRole("button", { name: "Продукты", exact: true }),
+    );
     await u.click(
       screen.getByRole("button", { name: "Сохранить", exact: true }),
     );

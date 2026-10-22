@@ -15,10 +15,8 @@ describe("Локальный бюджет", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "100,10");
-    await u.click(screen.getByRole("combobox", { name: "Категория" }));
-    await u.click(screen.getByRole("option", { name: "Продукты" }));
     await u.click(
-      screen.getByRole("button", { name: "+ Комментарий", exact: true }),
+      screen.getByRole("button", { name: "Продукты", exact: true }),
     );
     await u.type(screen.getByLabelText("Комментарий"), "Покупка");
     await u.click(
@@ -35,6 +33,8 @@ describe("Локальный бюджет", () => {
       screen.getByRole("button", { name: "Операции", exact: true }),
     );
     await u.click(screen.getByRole("button", { name: "Изменить" }));
+    expect(screen.queryByRole("navigation")).toBeNull();
+    await u.click(screen.getByRole("button", { name: "Отмена" }));
     await u.click(screen.getByRole("button", { name: "Главная" }));
     await u.click(screen.getByRole("button", { name: "Добавить операцию" }));
     expect((screen.getByLabelText("Сумма, ₽") as HTMLInputElement).value).toBe(
@@ -51,8 +51,9 @@ describe("Локальный бюджет", () => {
       await screen.findByRole("button", { name: "Добавить операцию" }),
     );
     await u.type(screen.getByLabelText("Сумма, ₽"), "1.001");
-    await u.click(screen.getByRole("combobox", { name: "Категория" }));
-    await u.click(screen.getByRole("option", { name: "Продукты" }));
+    await u.click(
+      screen.getByRole("button", { name: "Продукты", exact: true }),
+    );
     await u.click(
       screen.getByRole("button", { name: "Сохранить", exact: true }),
     );

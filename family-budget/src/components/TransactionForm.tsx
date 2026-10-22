@@ -1,8 +1,11 @@
-import { popularCategories, type CategoryUsage } from "../lib/categories";
+import {
+  popularCategories,
+  rankedCategories,
+  type CategoryUsage,
+} from "../lib/categories";
 import { useEffect, useRef, useState } from "react";
 import type { Category, Draft } from "../types";
 import { parseMoney } from "../lib/money";
-import { CategorySelect } from "./CategorySelect";
 import { validDate } from "../lib/dates";
 export function TransactionForm({
   initial,
@@ -21,7 +24,9 @@ export function TransactionForm({
 }) {
   const [draft, setDraft] = useState(initial);
   const [error, setError] = useState("");
-  const [commentOpen, setCommentOpen] = useState(Boolean(initial.comment));
+  const [choosing, setChoosing] = useState(false);
+  const [query, setQuery] = useState("");
+  const more = useRef<HTMLButtonElement>(null);
   const section = useRef<HTMLElement>(null);
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -45,7 +50,7 @@ export function TransactionForm({
       viewport.removeEventListener("resize", reposition);
       viewport.removeEventListener("scroll", reposition);
     };
-  }, []);
+  }, [choosing]);
   const change = (value: Partial<Draft>) =>
     setDraft((old) => ({ ...old, ...value }));
   async function submit() {
@@ -63,6 +68,71 @@ export function TransactionForm({
       setError(e instanceof Error ? e.message : "Проверьте данные");
     }
   }
+  const available = cats.filter((c) => c.kind === draft.kind);
+  const selected = available.find((c) => c.id === draft.category_id);
+  const all = rankedCategories(available, categoryUsage);
+  if (selected?.archived) all.push(selected);
+  function closeCategories() {
+    setChoosing(false);
+    requestAnimationFrame(() => more.current?.focus({ preventScroll: true }));
+  }
+  if (choosing)
+    return (
+      <section className="category-page">
+        <div className="section-heading">
+          <button type="button" className="secondary" onClick={closeCategories}>
+            ← Назад
+          </button>
+          <h2>Все категории</h2>
+        </div>
+        <label>
+          Поиск категории
+          <input
+            autoFocus
+            type="search"
+            placeholder="Начните вводить название"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <div
+          className="category-page-list"
+          role="group"
+          aria-label="Все категории по популярности"
+        >
+          {all
+            .filter((c) =>
+              c.name
+                .toLocaleLowerCase("ru-RU")
+                .startsWith(query.trim().toLocaleLowerCase("ru-RU")),
+            )
+            .map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                aria-pressed={draft.category_id === c.id}
+                onClick={() => {
+                  change({ category_id: c.id });
+                  closeCategories();
+                }}
+              >
+                <span>
+                  {c.name}
+                  {c.archived ? " · удалена" : ""}
+                </span>
+                <span aria-hidden="true">
+                  {draft.category_id === c.id ? "✓" : "›"}
+                </span>
+              </button>
+            ))}
+        </div>
+        {!all.some((c) =>
+          c.name
+            .toLocaleLowerCase("ru-RU")
+            .startsWith(query.trim().toLocaleLowerCase("ru-RU")),
+        ) && <p role="status">Категории не найдены</p>}
+      </section>
+    );
   return (
     <section className="transaction-form" ref={section}>
       <h2 className="sr-only">
@@ -76,7 +146,7 @@ export function TransactionForm({
       >
         <fieldset disabled={busy}>
           <legend className="sr-only">Операция</legend>
-          <div className="toggle">
+          <div className="subnav" role="group" aria-label="Тип операции">
             {(["expense", "income"] as const).map((kind) => (
               <button
                 type="button"
@@ -132,27 +202,22 @@ export function TransactionForm({
                 {c.name}
               </button>
             ))}
+            <button
+              ref={more}
+              type="button"
+              className="more-categories"
+              onClick={() => {
+                setQuery("");
+                setChoosing(true);
+              }}
+            >
+              Ещё
+            </button>
           </div>
-          <CategorySelect
-            key={draft.kind}
-            cats={cats.filter((c) => c.kind === draft.kind)}
-            value={draft.category_id}
-            onChange={(category_id) => change({ category_id })}
-          />
-          <button
-            type="button"
-            className="tiny comment-toggle"
-            aria-expanded={commentOpen}
-            aria-controls="transaction-comment"
-            onClick={() => setCommentOpen(!commentOpen)}
-          >
-            {commentOpen
-              ? "Скрыть комментарий"
-              : draft.comment
-                ? "Комментарий · заполнен"
-                : "+ Комментарий"}
-          </button>
-          <label hidden={!commentOpen} id="transaction-comment">
+          <small className="selected-category">
+            {selected ? `Категория: ${selected.name}` : "Выберите категорию"}
+          </small>
+          <label id="transaction-comment">
             Комментарий
             <input
               maxLength={2000}

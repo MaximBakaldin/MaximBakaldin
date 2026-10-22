@@ -1,3 +1,5 @@
+import type { AnalysisRow, DateRange } from "./analysis";
+import type { JournalEntry } from "../types";
 import type { CategoryUsage } from "./categories";
 import {
   calculatedSavings,
@@ -550,4 +552,62 @@ export function localCategoryUsage(): CategoryUsage[] {
   for (const t of read().transactions)
     counts.set(t.category_id, (counts.get(t.category_id) ?? 0) + 1);
   return Array.from(counts, ([category_id, uses]) => ({ category_id, uses }));
+}
+
+export function localAnalysis(
+  range: DateRange | null,
+  daily: boolean,
+): AnalysisRow[] {
+  const sums = new Map<string, AnalysisRow>();
+  for (const t of read().transactions) {
+    if (range && (t.occurred_on < range.from || t.occurred_on > range.to))
+      continue;
+    const period = daily ? t.occurred_on : t.occurred_on.slice(0, 7) + "-01",
+      key = period + ":" + t.category_id;
+    const old = sums.get(key);
+    sums.set(key, {
+      period,
+      category_id: t.category_id,
+      kind: t.kind,
+      cents: String(total([Number(old?.cents ?? 0), parseMoney(t.amount)])),
+    });
+  }
+  return [...sums.values()].sort((a, b) => a.period.localeCompare(b.period));
+}
+export function localJournal(
+  month: string,
+  filter: HistoryFilter,
+  offset: number,
+) {
+  const s = read();
+  const rows: JournalEntry[] = [
+    ...s.transactions.map((t) => ({ ...t, source: "transaction" as const })),
+    ...(s.savings ?? []).map((e) => ({
+      ...e,
+      source: "savings" as const,
+      account_name:
+        s.accounts?.find((a) => a.id === e.account_id)?.name ?? "Накопления",
+    })),
+  ];
+  const filtered = rows
+    .filter(
+      (e) =>
+        (filter.range
+          ? e.occurred_on >= filter.range.from &&
+            e.occurred_on <= filter.range.to
+          : e.occurred_on.startsWith(month)) &&
+        (!filter.category ||
+          (e.source === "transaction" && e.category_id === filter.category)) &&
+        (!filter.search.trim() ||
+          (e.comment ?? "")
+            .toLocaleLowerCase()
+            .includes(filter.search.trim().toLocaleLowerCase())),
+    )
+    .sort(
+      (a, b) =>
+        b.occurred_on.localeCompare(a.occurred_on) ||
+        b.id.localeCompare(a.id) ||
+        b.source.localeCompare(a.source),
+    );
+  return { rows: filtered.slice(offset, offset + 30), count: filtered.length };
 }
