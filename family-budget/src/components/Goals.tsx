@@ -61,7 +61,7 @@ export function Goals({
   };
   if (compact && !active.length) return null;
   return (
-    <section className="goals-section">
+    <section className={`goals-section${compact ? " dashboard-panel" : ""}`}>
       <div className="section-heading">
         <h3>
           Цели семьи{" "}
@@ -96,11 +96,12 @@ export function Goals({
               }}
               aria-label={`Цель ${g.name}`}
             >
-              <span className="line">
-                <b>{g.name}</b>
-                <small>
-                  {currency(p.balance + p.paid)} / {currency(p.target)}
-                </small>
+              <span className="line progress-heading">
+                <span className="progress-name">{g.name}</span>
+                <span className="progress-amount">
+                  <span>{currency(p.balance + p.paid)}</span> /{" "}
+                  <span>{currency(p.target)}</span>
+                </span>
               </span>
               <span
                 className="goal-track"

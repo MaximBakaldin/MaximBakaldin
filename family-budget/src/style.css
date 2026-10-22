@@ -2154,3 +2154,104 @@ nav button {
 .goals-section .actions {
   gap: 7px;
 }
+
+/* Home goals and spending share the same panel and progress-row geometry. */
+.dashboard-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 2px 7px #142d2408;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.dashboard-panel > .section-heading {
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.dashboard-panel > .section-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.3;
+  margin: 0;
+}
+.dashboard-panel .tiny {
+  padding: 5px 0 5px 6px;
+  font-size: 11px;
+}
+.dashboard-panel .goals-list {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.dashboard-panel .goal-row,
+.dashboard-panel .category-bullet {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 0;
+  margin: 0;
+}
+.progress-heading {
+  gap: 8px;
+  align-items: baseline;
+}
+.progress-heading .progress-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.progress-heading .progress-amount {
+  max-width: 70%;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.progress-amount > span {
+  white-space: nowrap;
+}
+.dashboard-panel .progress-heading {
+  margin: 0;
+}
+.dashboard-panel .goal-track,
+.dashboard-panel .bullet {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  margin: 4px 0 0;
+  background: var(--track);
+}
+.dashboard-panel .goal-track > span {
+  background: var(--chart);
+  border-radius: inherit;
+}
+.dashboard-panel .bullet-marker {
+  top: -3px;
+  height: 12px;
+}
+.dashboard-panel .goal-facts {
+  margin-top: 5px;
+  font-size: 11px;
+}
+.dashboard-panel .goal-facts > span,
+.dashboard-panel .goal-facts small {
+  font-size: 11px;
+}
+.dashboard-panel .category-bullets {
+  border-top: 0;
+  padding-top: 4px;
+}
+.dashboard-panel .spending-total {
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.dashboard-panel .spending-total small {
+  font-size: 12px;
+}

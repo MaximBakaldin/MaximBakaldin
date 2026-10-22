@@ -761,8 +761,8 @@ function Workspace({ user }: { user: string }) {
             busy={busy}
             run={run}
           />
-          <article className="spending-card">
-            <div className="line">
+          <article className="spending-card dashboard-panel">
+            <div className="section-heading">
               <h3>
                 Расходы и бюджет{" "}
                 <Help label="Расходы и бюджет">
@@ -814,12 +814,10 @@ function Workspace({ user }: { user: string }) {
                     aria-label={`Расшифровка: ${c.name}`}
                     onClick={() => setDetailCategory(c.id)}
                   >
-                    <div className="line">
-                      <span>{c.name}</span>
+                    <div className="line progress-heading">
+                      <span className="progress-name">{c.name}</span>
                       <b
-                        className={
-                          limit !== null && c.spent > limit ? "danger" : ""
-                        }
+                        className={`progress-amount${limit !== null && c.spent > limit ? " danger" : ""}`}
                       >
                         {currency(c.spent)}
                       </b>
@@ -1434,7 +1432,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.9.0</small>
+            <small>Версия 0.9.1</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
