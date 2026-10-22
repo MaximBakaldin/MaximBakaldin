@@ -36,7 +36,7 @@ function payment(id: string, amount: string, active = true) {
 }
 async function freeAmount() {
   const help = await screen.findByRole("button", {
-    name: "Подсказка: Свободно за месяц",
+    name: "Подсказка: Остаток на счетах",
   });
   return help.closest("article")!.querySelector("strong")!;
 }

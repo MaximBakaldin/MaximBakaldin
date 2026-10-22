@@ -684,8 +684,8 @@ function Workspace({ user }: { user: string }) {
             </article>
             <article>
               <small className="metric-label">
-                Свободно за месяц{" "}
-                <Help label="Свободно за месяц">
+                Остаток на счетах{" "}
+                <Help label="Остаток на счетах">
                   Доходы − расходы − обязательные к оплате − пополнения
                   накоплений + снятия. Оплаченные обязательные уже входят в
                   расходы. Без начального остатка текущего счёта.
@@ -1347,7 +1347,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.8.0</small>
+            <small>Версия 0.8.1</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню

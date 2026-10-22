@@ -904,14 +904,6 @@ nav {
   gap: 2px;
   min-height: 22px;
 }
-.metric-grid .savings-metric {
-  background: var(--highlight);
-  color: var(--on-highlight);
-}
-.savings-metric small,
-.savings-metric .help {
-  color: var(--muted-highlight);
-}
 .metric-value {
   padding: 0;
   background: transparent;
