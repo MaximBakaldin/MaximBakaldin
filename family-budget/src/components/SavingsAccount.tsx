@@ -1,8 +1,11 @@
+import { AccountTransfer } from "./AccountTransfer";
 import { Help } from "./Help";
 import { Modal } from "./Modal";
 import { useState } from "react";
 import type {
   Run,
+  FinancialGoal,
+  AccountTransfer as Transfer,
   Savings,
   SavingsDraft,
   SavingsKind,
@@ -24,6 +27,7 @@ type AccountForm = {
   rate: string;
   start: string;
   frequency: "daily" | "monthly";
+  goal: string;
 };
 export function SavingsAccount({
   family,
@@ -31,13 +35,18 @@ export function SavingsAccount({
   data,
   busy,
   run,
+  goals = [],
+  transfers = [],
 }: {
   family: string;
   month: string;
   data: Savings;
   busy: boolean;
   run: Run;
+  goals?: FinancialGoal[];
+  transfers?: Transfer[];
 }) {
+  const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [accountForm, setAccountForm] = useState<AccountForm | null>(null);
   const [draft, setDraft] = useState<SavingsDraft | null>(null);
   const [formError, setFormError] = useState("");
@@ -51,6 +60,7 @@ export function SavingsAccount({
       rate: a?.annual_rate == null ? "" : String(a.annual_rate),
       start: a?.interest_start ?? today(),
       frequency: a?.interest_frequency ?? "monthly",
+      goal: a?.goal_id ?? "",
     });
   }
   function create(a: SavingsAccountData, kind: SavingsKind) {
@@ -72,11 +82,12 @@ export function SavingsAccount({
           Накопления{" "}
           <Help label="Накопления и проценты">
             Показаны все счета на конец выбранного месяца. Пополнения и снятия
-            меняют свободные деньги месяца. Автопроценты увеличивают баланс
-            накоплений; начисляются за завершённые дни или месяцы, без будущих
-            начислений. Ставка применяется к остатку на конец дня, год — 365 или
-            366 дней. Изменение ставки, даты начала или прошлых движений
-            пересчитает проценты.
+            меняют остаток на картах. Цель определяется настройками счёта.
+            Автопроценты увеличивают баланс накоплений; начисляются за
+            завершённые дни или месяцы, без будущих начислений. Ставка
+            применяется к остатку на конец дня, год — 365 или 366 дней.
+            Изменение ставки, даты начала или прошлых движений пересчитает
+            проценты.
           </Help>
         </h2>
         <button className="tiny" onClick={() => editAccount()}>
@@ -106,6 +117,9 @@ export function SavingsAccount({
               Настроить
             </button>
           </div>
+          <small className="account-goal">
+            Цель: {goals.find((g) => g.id === a.goal_id)?.name ?? "Без цели"}
+          </small>
           <div className="line">
             <strong className="account-balance">
               {currency(signedCents(a.balance_cents))}
@@ -134,7 +148,7 @@ export function SavingsAccount({
               aria-label={`Снять со счёта ${a.name}`}
               onClick={() => create(a, "withdrawal")}
             >
-              Снять
+              На карту
             </button>
             {!a.has_opening && (
               <button
@@ -174,6 +188,13 @@ export function SavingsAccount({
                         className="tiny"
                         disabled={busy}
                         onClick={() => {
+                          if (e.transfer_id) {
+                            setTransfer(
+                              transfers.find((t) => t.id === e.transfer_id) ??
+                                null,
+                            );
+                            return;
+                          }
                           setFormError("");
                           setDraft({
                             ...e,
@@ -189,6 +210,13 @@ export function SavingsAccount({
                         className="tiny danger"
                         disabled={busy}
                         onClick={() => {
+                          if (e.transfer_id) {
+                            setTransfer(
+                              transfers.find((t) => t.id === e.transfer_id) ??
+                                null,
+                            );
+                            return;
+                          }
                           if (
                             confirm(
                               "Удалить движение? Автопроценты будут пересчитаны.",
@@ -217,6 +245,34 @@ export function SavingsAccount({
           </details>
         </article>
       ))}
+      {accounts.length > 1 && (
+        <button
+          className="tiny secondary"
+          onClick={() =>
+            setTransfer({
+              id: crypto.randomUUID(),
+              household_id: family,
+              version: 0,
+              from_account: accounts[0].id,
+              to_account: accounts[1].id,
+              amount: "",
+              occurred_on: today(),
+              comment: "",
+            })
+          }
+        >
+          Между счетами
+        </button>
+      )}
+      {transfer && (
+        <AccountTransfer
+          initial={transfer}
+          accounts={accounts}
+          busy={busy}
+          run={run}
+          onClose={() => setTransfer(null)}
+        />
+      )}
       {accountForm && (
         <Modal
           title={accountForm.version ? "Настройки счёта" : "Новый счёт"}
@@ -242,6 +298,7 @@ export function SavingsAccount({
                       interest_start: accountForm.start || null,
                       interest_frequency: accountForm.frequency,
                     },
+                    accountForm.goal || null,
                   );
                 } catch (e) {
                   setFormError(
@@ -267,6 +324,28 @@ export function SavingsAccount({
                   }
                 />
               </label>
+              <label>
+                Связанная цель
+                <select
+                  value={accountForm.goal}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, goal: e.target.value })
+                  }
+                >
+                  <option value="">Без цели</option>
+                  {goals
+                    .filter((g) => !g.archived)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <small className="hint">
+                Весь баланс относится к цели. Привязку можно менять; прошлые
+                движения сохраняются.
+              </small>
               <label>
                 Годовая ставка, %
                 <input
@@ -373,6 +452,19 @@ export function SavingsAccount({
                   ))}
                 </select>
               </label>
+              {draft.kind !== "opening" && (
+                <p className="hint">
+                  {draft.kind === "deposit"
+                    ? "С карт → накопления"
+                    : "Накопления → карты. Расхода пока нет."}{" "}
+                  · Цель:{" "}
+                  {goals.find(
+                    (g) =>
+                      g.id ===
+                      accounts.find((a) => a.id === draft.account_id)?.goal_id,
+                  )?.name ?? "Без цели"}
+                </p>
+              )}
               <label>
                 Сумма перевода, ₽
                 <input

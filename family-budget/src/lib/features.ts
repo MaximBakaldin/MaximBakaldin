@@ -80,12 +80,7 @@ export function dueDate(month: string, day: number) {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return `${month}-${String(Math.min(day, last)).padStart(2, "0")}`;
 }
-export function signedCents(value: string) {
-  const n = Number(value);
-  if (!Number.isSafeInteger(n))
-    throw new Error("Некорректная сумма от сервера");
-  return n;
-}
+export { signedCents } from "./money";
 
 export const saveSavingsAccount = (
   family: string,
@@ -93,14 +88,23 @@ export const saveSavingsAccount = (
   name: string,
   version: number,
   settings?: InterestSettings,
+  goalId?: string | null,
 ) => {
   if (settings) validateInterest(settings);
   return configured
-    ? rpc("save_savings_account", {
+    ? rpc(goalId === undefined ? "save_savings_account" : "save_goal_account", {
         p_household: family,
         p_id: id,
         p_name: name,
         p_version: version,
+        ...(goalId === undefined
+          ? {}
+          : {
+              p_goal: goalId,
+              p_rate: -1,
+              p_start: null,
+              p_frequency: "monthly",
+            }),
         ...(settings
           ? {
               p_rate:
@@ -112,5 +116,5 @@ export const saveSavingsAccount = (
             }
           : {}),
       })
-    : local.localSavingsAccount(id, name, version, settings);
+    : local.localSavingsAccount(id, name, version, settings, goalId);
 };

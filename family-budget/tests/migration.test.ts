@@ -74,6 +74,12 @@ it("обновляет исходную базу, сохраняя операц�
         "utf8",
       ),
     );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261022070421_savings_goals_cards.sql",
+        "utf8",
+      ),
+    );
     const migrated = (
       await db.query<{ name: string; amount: string; account_id: string }>(
         "select a.name,e.amount::text,e.account_id from public.savings_entries e join public.savings_accounts a on a.id=e.account_id",

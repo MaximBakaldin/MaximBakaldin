@@ -11,11 +11,15 @@ import {
   localPay,
   localSnapshot,
   localSavings,
+  localCardSettings,
 } from "../src/lib/demo";
 import { currentMonth, today } from "../src/lib/dates";
 import { currency } from "../src/lib/money";
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  localCardSettings("0", currentMonth() + "-01", 0);
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -36,11 +40,11 @@ function payment(id: string, amount: string, active = true) {
 }
 async function freeAmount() {
   const help = await screen.findByRole("button", {
-    name: "Подсказка: Остаток на счетах",
+    name: "Подсказка: Остаток на картах",
   });
   return help.closest("article")!.querySelector("strong")!;
 }
-it("резервирует неоплаченные обязательства, учитывает переводы и не вычитает оплату дважды", async () => {
+it("не вычитает неоплаченные обязательства; учитывает переводы и оплату один раз", async () => {
   const u = userEvent.setup();
   vi.spyOn(window, "confirm").mockReturnValue(true);
   localSave({
@@ -75,7 +79,7 @@ it("резервирует неоплаченные обязательства, 
     });
   }
   render(<App />);
-  expect((await freeAmount()).textContent).toBe(currency(50000));
+  expect((await freeAmount()).textContent).toBe(currency(70000));
   const nav = screen.getByRole("navigation");
   expect(
     within(nav)
@@ -102,10 +106,11 @@ it("резервирует неоплаченные обязательства, 
   await u.click(screen.getByRole("button", { name: "Отменить оплату Аренда" }));
   await screen.findByText("Оплата отменена, расход удалён");
   await u.click(within(nav).getByRole("button", { name: "Главная" }));
-  expect((await freeAmount()).textContent).toBe(currency(50000));
+  expect((await freeAmount()).textContent).toBe(currency(70000));
 });
-it("показывает нехватку денег на обязательства отрицательной суммой", async () => {
-  payment("Аренда", "200,50");
+it("показывает отрицательный реальный остаток после расхода", async () => {
+  payment("Аренда", "500");
+  localSave({ ...newDraft(), category_id: "local-0", amount: "200,50" });
   render(<App />);
   const amount = await freeAmount();
   expect(amount.textContent).toBe(currency(-20050));

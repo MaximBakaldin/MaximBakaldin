@@ -42,3 +42,10 @@ export const currency = (cents: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+
+export function signedCents(value: string) {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n))
+    throw new Error("Некорректная сумма от сервера");
+  return n;
+}

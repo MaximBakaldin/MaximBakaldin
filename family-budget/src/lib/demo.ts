@@ -1,5 +1,11 @@
 import type { AnalysisRow, DateRange } from "./analysis";
-import type { JournalEntry } from "../types";
+import type {
+  FinancialGoal,
+  CardBalance,
+  AccountTransfer,
+  GoalBaseline,
+  JournalEntry,
+} from "../types";
 import type { CategoryUsage } from "./categories";
 import {
   calculatedSavings,
@@ -19,10 +25,16 @@ import type {
   Snapshot,
   Transaction,
 } from "../types";
-import { today, shiftMonth } from "./dates";
+import { validateGoal } from "./goals";
+import { today, shiftMonth, validDate } from "./dates";
 import { decimal, parseMoney, total } from "./money";
 const KEY = "family-budget.local.v2";
 type Store = {
+  goals?: FinancialGoal[];
+  goalVersions?: { on: string; value: FinancialGoal }[];
+  links?: { account: string; goal: string | null; on: string }[];
+  cards?: CardBalance;
+  transfers?: AccountTransfer[];
   transactions: Transaction[];
   budgets: Budget[];
   revision: number;
@@ -105,7 +117,92 @@ export function localSnapshot(month: string): Snapshot {
   s.savings = (s.accounts ?? []).flatMap((a) =>
     calculatedSavings(rawSavings, a, end),
   );
+  const goalList = (s.goals ?? []).flatMap((g) => {
+    const version = (s.goalVersions ?? [])
+      .filter((v) => v.value.id === g.id && v.on <= end)
+      .at(-1)?.value;
+    if (!version) return [];
+    return [
+      {
+        ...version,
+        baseline: g.baseline,
+        paid_cents: String(
+          total(
+            s.transactions
+              .filter((t) => t.goal_id === g.id && t.occurred_on <= end)
+              .map((t) => parseMoney(t.amount)),
+          ),
+        ),
+        paid_month_cents: String(
+          total(
+            s.transactions
+              .filter(
+                (t) => t.goal_id === g.id && t.occurred_on.startsWith(month),
+              )
+              .map((t) => parseMoney(t.amount)),
+          ),
+        ),
+        contribution_cents: String(
+          total(
+            (s.savings ?? [])
+              .filter((e) => {
+                if (e.kind === "opening" || !e.occurred_on.startsWith(month))
+                  return false;
+                const goal =
+                  e.kind === "interest"
+                    ? (s.links ?? [])
+                        .filter(
+                          (l) =>
+                            l.account === e.account_id && l.on <= e.occurred_on,
+                        )
+                        .at(-1)?.goal
+                    : e.goal_id;
+                return goal === g.id;
+              })
+              .map(
+                (e) =>
+                  parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
+              ),
+          ),
+        ),
+      },
+    ];
+  });
+  const cards = s.cards ?? {
+    opening_amount: null,
+    opening_on: null,
+    version: 0,
+    balance_cents: null,
+  };
+  const cardCents =
+    cards.opening_on && cards.opening_on <= end
+      ? total([
+          parseMoney(cards.opening_amount!, true),
+          ...s.transactions
+            .filter(
+              (t) => t.occurred_on >= cards.opening_on! && t.occurred_on <= end,
+            )
+            .map((t) => parseMoney(t.amount) * (t.kind === "income" ? 1 : -1)),
+          ...rawSavings
+            .filter(
+              (e) =>
+                !e.transfer_id &&
+                ["deposit", "withdrawal"].includes(e.kind) &&
+                e.occurred_on >= cards.opening_on! &&
+                e.occurred_on <= end,
+            )
+            .map(
+              (e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? 1 : -1),
+            ),
+        ])
+      : null;
   return {
+    goals: goalList,
+    cards: {
+      ...cards,
+      balance_cents: cardCents === null ? null : String(cardCents),
+    },
+    transfers: s.transfers ?? [],
     family: s.family ?? family,
     revision: s.revision,
     categories: s.categories ?? categories,
@@ -138,6 +235,10 @@ export function localSnapshot(month: string): Snapshot {
     savings: {
       accounts: (s.accounts ?? []).map((a) => ({
         ...a,
+        goal_id:
+          (s.links ?? [])
+            .filter((l) => l.account === a.id && l.on <= end)
+            .at(-1)?.goal ?? null,
         interest_cents: String(
           total(
             (s.savings ?? [])
@@ -253,6 +354,7 @@ export function localSave(draft: Draft) {
   const s = read();
   const old = s.transactions.find((t) => t.id === draft.id);
   const data = {
+    goal_id: draft.kind === "expense" ? (draft.goal_id ?? null) : null,
     category_id: draft.category_id,
     kind: draft.kind,
     amount: decimal(parseMoney(draft.amount)),
@@ -284,6 +386,13 @@ export function localSave(draft: Draft) {
     throw new Error(
       "Оплата обязательного платежа должна остаться расходом в своём месяце",
     );
+  if (
+    data.goal_id &&
+    !(s.goals ?? []).some(
+      (g) => g.id === data.goal_id && (!g.archived || old?.goal_id === g.id),
+    )
+  )
+    throw new Error("Цель недоступна");
   const row: Transaction = {
     recurring_id: old?.recurring_id,
     recurring_month: old?.recurring_month,
@@ -459,6 +568,8 @@ export function localSavings(d: SavingsDraft, remove = false) {
   const account = d.account_id ?? old?.account_id ?? s.accounts![0].id;
   if (!s.accounts!.some((a) => a.id === account))
     throw new Error("Счёт не найден");
+  if (old?.transfer_id)
+    throw new Error("Измените перевод между счетами целиком");
   const next = list.filter((e) => e.id !== d.id);
   if (!remove) {
     if (
@@ -469,6 +580,12 @@ export function localSavings(d: SavingsDraft, remove = false) {
     next.push({
       ...d,
       account_id: account,
+      goal_id:
+        old && old.account_id === account && old.occurred_on === d.occurred_on
+          ? old.goal_id
+          : ((s.links ?? [])
+              .filter((l) => l.account === account && l.on <= d.occurred_on)
+              .at(-1)?.goal ?? null),
       amount: decimal(parseMoney(d.amount)),
       household_id: family.id,
       user_id: old?.user_id ?? DEMO_USER,
@@ -503,6 +620,7 @@ export function localSavingsAccount(
   name: string,
   version: number,
   settings?: InterestSettings,
+  goalId?: string | null,
 ) {
   const s = read();
   const old = s.accounts!.find((a) => a.id === id);
@@ -515,6 +633,8 @@ export function localSavingsAccount(
     )
   )
     throw new Error("Счёт с таким названием уже есть");
+  if (goalId && !(s.goals ?? []).some((g) => g.id === goalId && !g.archived))
+    throw new Error("Цель недоступна");
   const interest = settings ?? old ?? {};
   validateInterest(interest);
   const projected = calculatedSavings(
@@ -544,6 +664,12 @@ export function localSavingsAccount(
       interest_frequency: interest.interest_frequency ?? "monthly",
     },
   ];
+  if (
+    goalId !== undefined &&
+    (s.links ?? []).filter((l) => l.account === id).at(-1)?.goal !== goalId
+  ) {
+    s.links = [...(s.links ?? []), { account: id, goal: goalId, on: today() }];
+  }
   write(s);
 }
 
@@ -610,4 +736,121 @@ export function localJournal(
         b.source.localeCompare(a.source),
     );
   return { rows: filtered.slice(offset, offset + 30), count: filtered.length };
+}
+
+export function localGoal(g: FinancialGoal) {
+  validateGoal(g);
+  const s = read(),
+    old = s.goals?.find((x) => x.id === g.id);
+  if ((old?.version ?? 0) !== g.version)
+    throw new Error("Цель уже изменена. Обновите данные");
+  const next = {
+    ...g,
+    name: g.name.trim(),
+    version: g.version + 1,
+    baseline: old?.baseline ?? null,
+  };
+  s.goals = [...(s.goals ?? []).filter((x) => x.id !== g.id), next];
+  s.goalVersions = [...(s.goalVersions ?? []), { on: today(), value: next }];
+  if (g.archived && !old?.archived)
+    for (const a of s.accounts!) {
+      if (s.links?.filter((l) => l.account === a.id).at(-1)?.goal === g.id)
+        s.links.push({ account: a.id, goal: null, on: today() });
+      a.version++;
+    }
+  write(s);
+}
+export function localCardSettings(
+  amount: string,
+  date: string,
+  version: number,
+) {
+  const s = read();
+  if ((s.cards?.version ?? 0) !== version)
+    throw new Error("Остаток уже изменён. Обновите данные");
+  if (!validDate(date)) throw new Error("Проверьте дату");
+  s.cards = {
+    opening_amount: decimal(parseMoney(amount, true)),
+    opening_on: date,
+    version: version + 1,
+    balance_cents: null,
+  };
+  write(s);
+}
+export function localBaseline(g: FinancialGoal, baseline: GoalBaseline) {
+  const s = read(),
+    old = s.goals?.find((x) => x.id === g.id);
+  if (!old || old.version !== g.version) throw new Error("Цель уже изменена");
+  if (old.baseline) return;
+  old.baseline = baseline;
+  old.version++;
+  s.goalVersions = [
+    ...(s.goalVersions ?? []),
+    { on: today(), value: { ...old } },
+  ];
+  write(s);
+}
+export function localAccountTransfer(t: AccountTransfer, remove = false) {
+  const s = read(),
+    old = s.transfers?.find((x) => x.id === t.id);
+  if ((old?.version ?? 0) !== t.version) throw new Error("Перевод уже изменён");
+  if (
+    t.from_account === t.to_account ||
+    !s.accounts!.some((a) => a.id === t.from_account) ||
+    !s.accounts!.some((a) => a.id === t.to_account)
+  )
+    throw new Error("Выберите разные счета");
+  if (!validDate(t.occurred_on)) throw new Error("Проверьте дату");
+  const next = {
+    ...t,
+    amount: decimal(parseMoney(t.amount)),
+    version: t.version + 1,
+    debit_id: old?.debit_id ?? crypto.randomUUID(),
+    credit_id: old?.credit_id ?? crypto.randomUUID(),
+  };
+  s.savings = (s.savings ?? []).filter((e) => e.transfer_id !== t.id);
+  if (!remove)
+    for (const [id, account, kind] of [
+      [next.debit_id, t.from_account, "withdrawal"],
+      [next.credit_id, t.to_account, "deposit"],
+    ] as const)
+      s.savings.push({
+        id,
+        account_id: account,
+        household_id: family.id,
+        kind,
+        amount: next.amount,
+        occurred_on: t.occurred_on,
+        comment: t.comment,
+        user_id: DEMO_USER,
+        updated_by: DEMO_USER,
+        version: next.version,
+        transfer_id: t.id,
+        goal_id:
+          (s.links ?? [])
+            .filter((l) => l.account === account && l.on <= t.occurred_on)
+            .at(-1)?.goal ?? null,
+      });
+  for (const a of s.accounts!) {
+    const es = calculatedSavings(s.savings, a, "9998-12-31");
+    let b = 0;
+    for (const day of [...new Set(es.map((e) => e.occurred_on))].sort()) {
+      b += total(
+        es
+          .filter((e) => e.occurred_on === day)
+          .map(
+            (e) => parseMoney(e.amount) * (e.kind === "withdrawal" ? -1 : 1),
+          ),
+      );
+      if (b < 0)
+        throw new Error(
+          "На накопительном счёте недостаточно средств на эту дату",
+        );
+    }
+  }
+  s.transfers = [
+    ...(s.transfers ?? []).filter((x) => x.id !== t.id),
+    ...(remove ? [] : [next]),
+  ];
+  write(s);
 }

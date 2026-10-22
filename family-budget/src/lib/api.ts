@@ -52,6 +52,7 @@ export const saveTransaction = (family: string, draft: Draft) =>
     p_amount: decimal(parseMoney(draft.amount)),
     p_date: draft.occurred_on,
     p_comment: draft.comment.trim() || null,
+    p_goal: draft.kind === "expense" ? (draft.goal_id ?? null) : null,
   });
 export const deleteTransaction = (row: Transaction) =>
   rpc("delete_transaction", { p_id: row.id, p_version: row.version });

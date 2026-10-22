@@ -2021,3 +2021,136 @@ nav button {
 .appearance-swatch.danger {
   background: var(--danger);
 }
+
+/* Shared, compact planning surfaces. Clickable metrics use the same card fill. */
+.metric-grid > article,
+.metric-grid > article.savings-metric {
+  background: var(--surface);
+}
+.metric-grid .metric-value {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  box-shadow: none;
+}
+.pending-obligations {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  padding: 5px 2px;
+  font-size: 0.78rem;
+}
+.goals-section {
+  margin: 10px 0;
+}
+.goals-section .section-heading {
+  margin-bottom: 4px;
+}
+.goals-list {
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0 10px;
+}
+.goals-section .goal-row {
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-radius: 0;
+  padding: 8px 0;
+  text-align: left;
+}
+.goal-row + .goal-row {
+  border-top: 1px solid var(--border);
+}
+.goal-row .line {
+  gap: 7px;
+  font-size: 0.8rem;
+}
+.goal-row small {
+  font-size: 0.7rem;
+}
+.goal-track {
+  display: block;
+  height: 4px;
+  background: var(--soft);
+  border-radius: 4px;
+  margin: 5px 0;
+  overflow: hidden;
+}
+.goal-track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.goal-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 6px;
+}
+.goal-facts > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.76rem;
+}
+.goal-details dl {
+  margin: 8px 0;
+}
+.goal-details dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.8rem;
+}
+.goal-details dt {
+  color: var(--muted);
+}
+.goal-details dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+}
+.goal-details h4 {
+  margin: 12px 0 6px;
+}
+.goal-details details {
+  margin-top: 10px;
+}
+.card-settings .twocol {
+  align-items: end;
+}
+.goal-expense {
+  margin: 5px 0;
+  font-size: 0.8rem;
+}
+.goal-expense label {
+  margin-top: 7px;
+}
+.account-goal {
+  display: block;
+  margin: 2px 0 4px;
+}
+.savings-card {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.savings-card .account-balance {
+  font-size: 1.2rem;
+}
+.savings-card .actions {
+  gap: 6px;
+  margin-top: 7px;
+}
+.savings-card .tiny {
+  padding: 6px 9px;
+}
+.goals-section .actions {
+  gap: 7px;
+}

@@ -9,6 +9,7 @@ export type Category = {
   version?: number;
 };
 export type Transaction = {
+  goal_id?: string | null;
   id: string;
   household_id: string;
   user_id: string;
@@ -44,6 +45,9 @@ export type Member = {
 };
 export type Summary = { category_id: string; kind: Kind; cents: string };
 export type Snapshot = {
+  goals?: FinancialGoal[];
+  cards?: CardBalance;
+  transfers?: AccountTransfer[];
   family: Family;
   categories: Category[];
   budgets: Budget[];
@@ -54,6 +58,7 @@ export type Snapshot = {
   savings?: Savings;
 };
 export type Draft = {
+  goal_id?: string | null;
   id: string;
   category_id: string;
   kind: Kind;
@@ -85,6 +90,8 @@ export type Recurring = {
 export type RecurringDraft = Omit<Recurring, "payment" | "effective_month">;
 export type SavingsKind = "opening" | "deposit" | "withdrawal";
 export type SavingsEntry = {
+  goal_id?: string | null;
+  transfer_id?: string | null;
   account_id?: string;
   id: string;
   household_id: string;
@@ -118,6 +125,7 @@ export type Run = (
 ) => Promise<boolean>;
 
 export type SavingsAccountData = {
+  goal_id?: string | null;
   annual_rate?: string | number | null;
   interest_start?: string | null;
   interest_frequency?: "daily" | "monthly";
@@ -129,4 +137,45 @@ export type SavingsAccountData = {
   balance_cents: string;
   transfer_cents: string;
   has_opening: boolean;
+};
+
+export type GoalBaseline = {
+  captured_on: string;
+  target_amount: string | number;
+  deadline: string;
+  monthly_amount: string | number;
+  required_amount: string | number;
+  balance_amount: string | number;
+};
+export type FinancialGoal = {
+  id: string;
+  household_id: string;
+  name: string;
+  target_amount: string | number;
+  deadline: string;
+  monthly_amount: string | number;
+  version: number;
+  archived: boolean;
+  baseline?: GoalBaseline | null;
+  paid_cents?: string;
+  contribution_cents?: string;
+  paid_month_cents?: string;
+};
+export type CardBalance = {
+  opening_amount: string | number | null;
+  opening_on: string | null;
+  version: number;
+  balance_cents: string | null;
+};
+export type AccountTransfer = {
+  id: string;
+  household_id: string;
+  version: number;
+  from_account: string;
+  to_account: string;
+  amount: string | number;
+  occurred_on: string;
+  comment: string | null;
+  debit_id?: string;
+  credit_id?: string;
 };

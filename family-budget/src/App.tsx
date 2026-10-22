@@ -1,3 +1,8 @@
+import { Goals } from "./components/Goals";
+import { CardSettings } from "./components/CardSettings";
+import { AccountTransfer } from "./components/AccountTransfer";
+import { Modal } from "./components/Modal";
+import type { AccountTransfer as Transfer } from "./types";
 import type { CategoryUsage } from "./lib/categories";
 import { obligations } from "./lib/obligations";
 import { Help } from "./components/Help";
@@ -138,6 +143,8 @@ export default function App() {
 }
 
 function Workspace({ user }: { user: string }) {
+  const [cardsOpen, setCardsOpen] = useState(false);
+  const [accountTransfer, setAccountTransfer] = useState<Transfer | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [budgetView, setBudgetView] = useState<
     "limits" | "recurring" | "savings"
@@ -508,11 +515,14 @@ function Workspace({ user }: { user: string }) {
     has_opening: false,
     entries: [],
   };
-  const transfers = signedCents(savings.transfer_cents);
+  const cardBalance =
+    data.cards?.balance_cents == null
+      ? null
+      : signedCents(data.cards.balance_cents);
   const { paid: requiredPaid, pending: requiredLeft } = obligations(
     data.recurring ?? [],
   );
-  const freeForMonth = earned - spent - transfers - requiredLeft;
+
   const ranked = cats
     .filter((c) => c.spent > 0 || c.budget || c.pending)
     .sort((a, b) => b.spent - a.spent);
@@ -527,6 +537,7 @@ function Workspace({ user }: { user: string }) {
     setReturnToBudget(false);
     setDraft({
       id: t.id,
+      goal_id: t.goal_id,
       version: t.version,
       kind: t.kind,
       amount: String(t.amount),
@@ -684,16 +695,30 @@ function Workspace({ user }: { user: string }) {
             </article>
             <article>
               <small className="metric-label">
-                Остаток на счетах{" "}
-                <Help label="Остаток на счетах">
-                  Доходы − расходы − обязательные к оплате − пополнения
-                  накоплений + снятия. Оплаченные обязательные уже входят в
-                  расходы. Без начального остатка текущего счёта.
+                Остаток на картах{" "}
+                <Help label="Остаток на картах">
+                  Начальный остаток + доходы − расходы − пополнения накоплений +
+                  возвраты. Учитываются все операции с даты начального остатка
+                  по конец выбранного месяца. Неоплаченные обязательства пока не
+                  списаны. Нажмите сумму для настройки.
                 </Help>
               </small>
-              <strong className={freeForMonth < 0 ? "danger" : ""}>
-                {currency(freeForMonth)}
-              </strong>
+              <button
+                className="metric-value"
+                onClick={() => setCardsOpen(true)}
+              >
+                <strong
+                  className={
+                    cardBalance !== null && cardBalance < 0 ? "danger" : ""
+                  }
+                >
+                  {cardBalance === null
+                    ? data.cards?.opening_on
+                      ? "До начала учёта"
+                      : "Настроить"
+                    : currency(cardBalance)}
+                </strong>
+              </button>
             </article>
             <article className="savings-metric">
               <small className="metric-label">
@@ -717,6 +742,25 @@ function Workspace({ user }: { user: string }) {
               </button>
             </article>
           </div>
+          <button
+            className="pending-obligations"
+            onClick={() => {
+              setBudgetView("recurring");
+              navigate("budget");
+            }}
+          >
+            <span>Обязательные к оплате</span>
+            <b>{currency(requiredLeft)} ›</b>
+          </button>
+          <Goals
+            compact
+            family={data.family.id}
+            goals={data.goals ?? []}
+            accounts={savings.accounts ?? []}
+            month={month}
+            busy={busy}
+            run={run}
+          />
           <article className="spending-card">
             <div className="line">
               <h3>
@@ -849,6 +893,7 @@ function Workspace({ user }: { user: string }) {
         <TransactionForm
           key={draft.id}
           initial={draft}
+          goals={data.goals ?? []}
           categoryUsage={
             categoryUsage.family === familyId ? categoryUsage.rows : []
           }
@@ -979,7 +1024,14 @@ function Workspace({ user }: { user: string }) {
                         {t.occurred_on} · {author(t.user_id)}
                       </small>
                       {t.comment && <p className="comment">{t.comment}</p>}
-                      <small>Движение накоплений</small>
+                      <small>
+                        {t.transfer_id
+                          ? "Между накопительными счетами"
+                          : "Движение накоплений"}
+                        {t.goal_id
+                          ? ` · ${data.goals?.find((g) => g.id === t.goal_id)?.name ?? "Цель"}`
+                          : ""}
+                      </small>
                     </div>
                     <div className="entryright">
                       <b>
@@ -990,7 +1042,15 @@ function Workspace({ user }: { user: string }) {
                         <button
                           className="tiny"
                           disabled={busy}
-                          onClick={() =>
+                          onClick={() => {
+                            if (t.transfer_id) {
+                              setAccountTransfer(
+                                data.transfers?.find(
+                                  (x) => x.id === t.transfer_id,
+                                ) ?? null,
+                              );
+                              return;
+                            }
                             setSavingsEdit({
                               name: t.account_name,
                               draft: {
@@ -999,8 +1059,8 @@ function Workspace({ user }: { user: string }) {
                                 amount: String(t.amount),
                                 comment: t.comment ?? "",
                               },
-                            })
-                          }
+                            });
+                          }}
                         >
                           Изменить
                         </button>
@@ -1008,6 +1068,14 @@ function Workspace({ user }: { user: string }) {
                           className="tiny danger"
                           disabled={busy}
                           onClick={() => {
+                            if (t.transfer_id) {
+                              setAccountTransfer(
+                                data.transfers?.find(
+                                  (x) => x.id === t.transfer_id,
+                                ) ?? null,
+                              );
+                              return;
+                            }
                             if (
                               confirm(
                                 "Удалить движение? Проценты будут пересчитаны.",
@@ -1150,14 +1218,26 @@ function Workspace({ user }: { user: string }) {
             />
           )}
           {budgetView === "savings" && (
-            <SavingsAccount
-              key={month}
-              family={data.family.id}
-              month={month}
-              data={savings}
-              busy={busy}
-              run={run}
-            />
+            <>
+              <SavingsAccount
+                key={month}
+                family={data.family.id}
+                month={month}
+                data={savings}
+                goals={data.goals ?? []}
+                transfers={data.transfers ?? []}
+                busy={busy}
+                run={run}
+              />
+              <Goals
+                family={data.family.id}
+                goals={data.goals ?? []}
+                accounts={savings.accounts ?? []}
+                month={month}
+                busy={busy}
+                run={run}
+              />
+            </>
           )}
           {budgetView === "limits" && (
             <div className="budget-limits">
@@ -1220,6 +1300,13 @@ function Workspace({ user }: { user: string }) {
         <section>
           <h2 className="sr-only">Настройки приложения</h2>
           <Appearance user={user} />
+          <CardSettings
+            key={data.cards?.version ?? 0}
+            family={data.family.id}
+            data={data.cards}
+            busy={busy}
+            run={run}
+          />
           {owner && (
             <FamilySettings
               key={data.family.settings_version ?? 1}
@@ -1347,7 +1434,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.8.1</small>
+            <small>Версия 0.9.0</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
@@ -1365,6 +1452,31 @@ function Workspace({ user }: { user: string }) {
             </button>
           )}
         </section>
+      )}
+      {cardsOpen && (
+        <Modal
+          title="Остаток на картах"
+          onClose={() => {
+            if (!busy) setCardsOpen(false);
+          }}
+        >
+          <CardSettings
+            key={data.cards?.version ?? 0}
+            family={data.family.id}
+            data={data.cards}
+            busy={busy}
+            run={run}
+          />
+        </Modal>
+      )}
+      {accountTransfer && (
+        <AccountTransfer
+          initial={accountTransfer}
+          accounts={savings.accounts ?? []}
+          busy={busy}
+          run={run}
+          onClose={() => setAccountTransfer(null)}
+        />
       )}
       {savingsEdit && (
         <SavingsTransferEditor

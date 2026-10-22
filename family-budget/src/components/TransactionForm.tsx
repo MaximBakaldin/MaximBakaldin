@@ -4,12 +4,13 @@ import {
   type CategoryUsage,
 } from "../lib/categories";
 import { useEffect, useRef, useState } from "react";
-import type { Category, Draft } from "../types";
+import type { Category, Draft, FinancialGoal } from "../types";
 import { parseMoney } from "../lib/money";
 import { validDate } from "../lib/dates";
 export function TransactionForm({
   initial,
   cats,
+  goals = [],
   categoryUsage = [],
   busy,
   onSave,
@@ -17,6 +18,7 @@ export function TransactionForm({
 }: {
   initial: Draft;
   cats: Category[];
+  goals?: FinancialGoal[];
   categoryUsage?: CategoryUsage[];
   busy: boolean;
   onSave: (draft: Draft) => Promise<boolean>;
@@ -157,7 +159,7 @@ export function TransactionForm({
                 key={kind}
                 aria-pressed={draft.kind === kind}
                 className={draft.kind === kind ? "selected" : ""}
-                onClick={() => change({ kind, category_id: "" })}
+                onClick={() => change({ kind, category_id: "", goal_id: null })}
               >
                 {kind === "expense" ? "Расход" : "Доход"}
               </button>
@@ -230,6 +232,31 @@ export function TransactionForm({
               onChange={(e) => change({ comment: e.target.value })}
             />
           </label>
+          {draft.kind === "expense" && goals.length > 0 && (
+            <details
+              className="goal-expense"
+              open={draft.goal_id ? true : undefined}
+            >
+              <summary>Покупка для цели</summary>
+              <label>
+                Оплата цели
+                <select
+                  value={draft.goal_id ?? ""}
+                  onChange={(e) => change({ goal_id: e.target.value || null })}
+                >
+                  <option value="">Обычный расход</option>
+                  {goals
+                    .filter((g) => !g.archived || g.id === draft.goal_id)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                        {g.archived ? " · удалена" : ""}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </details>
+          )}
           <div className="transaction-dock">
             {error && (
               <p role="alert" className="error">
