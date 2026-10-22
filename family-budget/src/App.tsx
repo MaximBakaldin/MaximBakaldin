@@ -742,6 +742,15 @@ function Workspace({ user }: { user: string }) {
               </button>
             </article>
           </div>
+          <Goals
+            compact
+            family={data.family.id}
+            goals={data.goals ?? []}
+            accounts={savings.accounts ?? []}
+            month={month}
+            busy={busy}
+            run={run}
+          />
           <button
             className="pending-obligations"
             onClick={() => {
@@ -752,15 +761,6 @@ function Workspace({ user }: { user: string }) {
             <span>Обязательные к оплате</span>
             <b>{currency(requiredLeft)} ›</b>
           </button>
-          <Goals
-            compact
-            family={data.family.id}
-            goals={data.goals ?? []}
-            accounts={savings.accounts ?? []}
-            month={month}
-            busy={busy}
-            run={run}
-          />
           <article className="spending-card dashboard-panel">
             <div className="section-heading">
               <h3>
@@ -1432,7 +1432,7 @@ function Workspace({ user }: { user: string }) {
           <InstallApp />
           <article>
             <h3>О приложении</h3>
-            <small>Версия 0.9.1</small>
+            <small>Версия 0.9.2</small>
             <p>Рубли · Екатеринбург (UTC+5)</p>
             <p>
               На iPhone: «Поделиться» → «На экран Домой». На Android: меню
