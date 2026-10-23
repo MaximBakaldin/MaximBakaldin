@@ -7,21 +7,27 @@ export function BudgetRow({
   version,
   busy,
   onSave,
+  minimum,
+  maximum,
+  caption,
 }: {
   name: string;
-  amount: number;
+  amount: number | null;
   spent: number;
   version: number;
   busy: boolean;
   onSave: (value: string, version: number) => Promise<boolean>;
+  minimum?: number;
+  maximum?: number | null;
+  caption?: string;
 }) {
-  const [value, setValue] = useState(decimal(amount));
+  const [value, setValue] = useState(amount === null ? "" : decimal(amount));
   const [base, setBase] = useState(version);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!dirty) {
-      setValue(decimal(amount));
+      setValue(amount === null ? "" : decimal(amount));
       setBase(version);
     }
   }, [amount, version, dirty]);
@@ -29,7 +35,15 @@ export function BudgetRow({
   async function save() {
     setError("");
     try {
-      parseMoney(value, true);
+      const cents = parseMoney(value, true);
+      if (minimum !== undefined && cents < minimum)
+        throw new Error(
+          `Уже распределено ${currency(minimum)}. Сначала уменьшите лимиты категорий.`,
+        );
+      if (maximum != null && cents > maximum)
+        throw new Error(
+          `Для этой категории доступно ${currency(maximum)}. Увеличьте общий лимит или уменьшите другие категории.`,
+        );
       if (await onSave(value, base)) setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Некорректная сумма");
@@ -39,7 +53,7 @@ export function BudgetRow({
     <article className="budget-row">
       <div className="line">
         <b>{name}</b>
-        <small>Факт: {currency(spent)}</small>
+        <small>{caption ?? `Факт: ${currency(spent)}`}</small>
       </div>
       <form
         className="budgetinput"

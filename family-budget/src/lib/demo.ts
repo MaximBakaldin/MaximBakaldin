@@ -14,6 +14,7 @@ import {
 } from "./interest";
 import type {
   Budget,
+  MonthlyBudget,
   Family,
   Recurring,
   RecurringDraft,
@@ -37,6 +38,7 @@ type Store = {
   transfers?: AccountTransfer[];
   transactions: Transaction[];
   budgets: Budget[];
+  monthlyBudgets?: MonthlyBudget[];
   revision: number;
   family?: Family;
   categories?: Category[];
@@ -312,6 +314,8 @@ export function localSnapshot(month: string): Snapshot {
         .filter((e) => e.occurred_on.startsWith(month))
         .sort((a, b) => b.occurred_on.localeCompare(a.occurred_on)),
     },
+    monthly_budget:
+      s.monthlyBudgets?.find((b) => b.month === month + "-01") ?? null,
     budgets: s.budgets.filter((b) => b.month === month + "-01"),
     summary: (s.categories ?? categories).map((c) => ({
       category_id: c.id,
@@ -416,6 +420,39 @@ export function localDelete(t: Transaction) {
   s.transactions = s.transactions.filter((r) => r.id !== t.id);
   write(s);
 }
+function assertMonthlyLimit(s: Store, month: string) {
+  const limit = s.monthlyBudgets?.find((b) => b.month === month + "-01");
+  const allocated = total(
+    s.budgets
+      .filter((b) => b.month === month + "-01")
+      .map((b) => parseMoney(b.amount, true)),
+  );
+  if (limit && allocated > parseMoney(limit.amount, true))
+    throw new Error("Сумма лимитов категорий превышает общий лимит месяца");
+}
+export function localMonthlyBudget(
+  month: string,
+  amount: string,
+  version: number,
+) {
+  const s = read();
+  const old = s.monthlyBudgets?.find((b) => b.month === month + "-01");
+  if ((old?.version ?? 0) !== version)
+    throw new Error(
+      "Общий лимит уже изменён. Обновите данные перед сохранением",
+    );
+  s.monthlyBudgets = [
+    ...(s.monthlyBudgets ?? []).filter((b) => b !== old),
+    {
+      household_id: family.id,
+      month: month + "-01",
+      amount: decimal(parseMoney(amount, true)),
+      version: version + 1,
+    },
+  ];
+  assertMonthlyLimit(s, month);
+  write(s);
+}
 export function localBudget(
   category: string,
   month: string,
@@ -438,13 +475,29 @@ export function localBudget(
       version: version + 1,
     },
   ];
+  assertMonthlyLimit(s, month);
   write(s);
 }
 export function localCopy(month: string) {
   const s = read();
   const prev = s.budgets.filter(
+    (b) =>
+      b.month === shiftMonth(month, -1) + "-01" &&
+      (s.categories ?? categories).some(
+        (c) => c.id === b.category_id && !c.archived,
+      ),
+  );
+  const previousLimit = s.monthlyBudgets?.find(
     (b) => b.month === shiftMonth(month, -1) + "-01",
   );
+  if (
+    previousLimit &&
+    !s.monthlyBudgets?.some((b) => b.month === month + "-01")
+  )
+    s.monthlyBudgets = [
+      ...(s.monthlyBudgets ?? []),
+      { ...previousLimit, month: month + "-01", version: 1 },
+    ];
   let count = 0;
   for (const b of prev)
     if (
@@ -456,6 +509,7 @@ export function localCopy(month: string) {
       s.budgets.push({ ...b, month: month + "-01", version: 1 });
       count++;
     }
+  assertMonthlyLimit(s, month);
   write(s);
   return count;
 }

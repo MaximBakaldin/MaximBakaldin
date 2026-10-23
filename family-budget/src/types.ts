@@ -32,6 +32,12 @@ export type Budget = {
   amount: string | number;
   version: number;
 };
+export type MonthlyBudget = {
+  household_id: string;
+  month: string;
+  amount: string | number;
+  version: number;
+};
 export type Family = {
   id: string;
   name: string;
@@ -45,6 +51,7 @@ export type Member = {
 };
 export type Summary = { category_id: string; kind: Kind; cents: string };
 export type Snapshot = {
+  monthly_budget?: MonthlyBudget | null;
   goals?: FinancialGoal[];
   cards?: CardBalance;
   transfers?: AccountTransfer[];

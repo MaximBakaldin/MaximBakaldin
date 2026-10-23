@@ -820,3 +820,141 @@ it("общий журнал объединяет движения счетов �
     ]),
   ).rejects.toThrow(/permission denied/);
 });
+
+describe("Общий лимит месяца", () => {
+  const month = "2026-10-01";
+  const cap = (amount: string, version = 0, date = month) =>
+    value("select public.save_monthly_budget($1,$2,$3,$4) as v", [
+      family,
+      date,
+      amount,
+      version,
+    ]);
+  const budget = (cat: string, amount: string, version = 0, date = month) =>
+    value("select public.save_budget($1,$2,$3,$4,$5) as v", [
+      family,
+      cat,
+      date,
+      amount,
+      version,
+    ]);
+  it("учитывает копейки и запрещает превышение по нескольким категориям", async () => {
+    const second = await value(
+      "select id as v from public.categories where name='Дети'",
+    );
+    await cap("100.10");
+    await budget(category, "60.05");
+    await budget(second, "40.05");
+    await expect(budget(second, "40.06", 1)).rejects.toThrow(
+      "превышает общий лимит",
+    );
+    await expect(cap("100.09", 1)).rejects.toThrow("меньше суммы");
+    await budget(category, "50", 1);
+    await budget(second, "50.10", 1);
+    const snapshot = await value<{
+      monthly_budget: { amount: number };
+      budgets: { amount: number }[];
+    }>("select public.budget_snapshot($1) as v", [month]);
+    expect(Number(snapshot.monthly_budget.amount)).toBe(100.1);
+    expect(snapshot.budgets.reduce((sum, b) => sum + Number(b.amount), 0)).toBe(
+      100.1,
+    );
+  });
+  it("сохраняет старые планы и ограничивает только выбранный месяц", async () => {
+    await budget(category, "200");
+    await expect(cap("199")).rejects.toThrow("меньше суммы");
+    await cap("200");
+    await budget(category, "1000", 0, "2026-11-01");
+    await expect(cap("300", 0)).rejects.toThrow("уже изменён");
+    await cap("300", 1);
+    await as(B);
+    await expect(cap("400", 1)).rejects.toThrow("уже изменён");
+  });
+  it("нулевой лимит запрещает положительное распределение, но не фактические расходы", async () => {
+    await cap("0");
+    await budget(category, "0");
+    await expect(budget(category, "0.01", 1)).rejects.toThrow(
+      "превышает общий лимит",
+    );
+    await save();
+  });
+  it("проверяет входные значения и доступ семьи, блокирует прямую запись", async () => {
+    for (const invalid of ["-1", "0.001", "NaN", "Infinity", "1000000000000"])
+      await expect(cap(invalid)).rejects.toThrow("Некорректная сумма");
+    await expect(cap("10", 0, "2026-10-02")).rejects.toThrow("Выберите месяц");
+    await cap("100");
+    await expect(
+      db.exec("update public.monthly_budgets set amount=0"),
+    ).rejects.toThrow(/permission denied/);
+    await as(C);
+    expect(
+      await value<number>(
+        "select count(*)::int as v from public.monthly_budgets",
+      ),
+    ).toBe(0);
+    await expect(cap("200", 1)).rejects.toThrow("Доступ запрещён");
+    await db.exec("reset role; set role anon");
+    await expect(cap("200", 1)).rejects.toThrow(/permission denied/);
+  });
+  it("копирует общий лимит и категории без перезаписи заполненных значений", async () => {
+    await cap("200", 0, "2026-09-01");
+    await budget(category, "100", 0, "2026-09-01");
+    expect(
+      await value("select public.copy_budget($1,$2) as v", [family, month]),
+    ).toBe(1);
+    const s = await value<{
+      monthly_budget: { amount: number; version: number };
+    }>("select public.budget_snapshot($1) as v", [month]);
+    expect(Number(s.monthly_budget.amount)).toBe(200);
+    await cap("300", 1);
+    expect(
+      await value("select public.copy_budget($1,$2) as v", [family, month]),
+    ).toBe(0);
+    expect(
+      Number(
+        (
+          await value<{ monthly_budget: { amount: number } }>(
+            "select public.budget_snapshot($1) as v",
+            [month],
+          )
+        ).monthly_budget.amount,
+      ),
+    ).toBe(300);
+  });
+  it("отменяет копирование целиком при превышении существующего или скопированного лимита", async () => {
+    const second = await value(
+      "select id as v from public.categories where name='Дети'",
+    );
+    await budget(category, "60", 0, "2026-09-01");
+    await budget(second, "60", 0, "2026-09-01");
+    await cap("100");
+    await expect(
+      value("select public.copy_budget($1,$2) as v", [family, month]),
+    ).rejects.toThrow("Копирование превысит");
+    expect(
+      await value<number>(
+        "select count(*)::int as v from public.budgets where month='2026-10-01'",
+      ),
+    ).toBe(0);
+    await cap("120", 0, "2026-09-01");
+    // September's cap must not be partially copied into a month with larger existing allocations.
+    await db.exec(
+      "reset role; delete from public.monthly_budgets where month='2026-10-01'",
+    );
+    await as(A);
+    await budget(category, "200");
+    await expect(
+      value("select public.copy_budget($1,$2) as v", [family, month]),
+    ).rejects.toThrow("Копирование превысит");
+    expect(
+      await value<number>(
+        "select count(*)::int as v from public.monthly_budgets where month='2026-10-01'",
+      ),
+    ).toBe(0);
+    expect(
+      await value<number>(
+        "select count(*)::int as v from public.budgets where month='2026-10-01'",
+      ),
+    ).toBe(1);
+  });
+});

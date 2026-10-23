@@ -2255,3 +2255,17 @@ nav button {
 .dashboard-panel .spending-total small {
   font-size: 12px;
 }
+
+.limit-allocation {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 2px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.limit-allocation b {
+  color: var(--text);
+  white-space: nowrap;
+}

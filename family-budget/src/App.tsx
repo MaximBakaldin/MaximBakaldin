@@ -491,8 +491,12 @@ function Workspace({ user }: { user: string }) {
       .filter((s) => s.kind === "income")
       .map((s) => summaryCents(s.cents)),
   );
-  const plan = total(data.budgets.map((b) => parseMoney(b.amount, true)));
-  const planned = data.budgets.length > 0;
+  const allocated = total(data.budgets.map((b) => parseMoney(b.amount, true)));
+  const monthlyLimit = data.monthly_budget
+    ? parseMoney(data.monthly_budget.amount, true)
+    : null;
+  const plan = monthlyLimit ?? allocated;
+  const planned = monthlyLimit !== null || data.budgets.length > 0;
   const cats = data.categories
     .filter(
       (c) =>
@@ -1240,11 +1244,46 @@ function Workspace({ user }: { user: string }) {
           {budgetView === "limits" && (
             <div className="budget-limits">
               <h2>Лимиты на месяц</h2>
-              <article className="hero limits-summary">
-                <small>Бюджет расходов</small>
-                <h2>{currency(plan)}</h2>
-                <small>Факт: {currency(spent)}</small>
-              </article>
+              <BudgetRow
+                key={`total-${month}`}
+                name="Общий лимит"
+                amount={monthlyLimit}
+                spent={spent}
+                caption={
+                  monthlyLimit === null
+                    ? "Пока не задан"
+                    : `Факт: ${currency(spent)}`
+                }
+                minimum={allocated}
+                version={data.monthly_budget?.version ?? 0}
+                busy={busy}
+                onSave={(value, version) =>
+                  run(async () => {
+                    if (configured)
+                      await api.rpc("save_monthly_budget", {
+                        p_household: data.family.id,
+                        p_month: month + "-01",
+                        p_amount: decimal(parseMoney(value, true)),
+                        p_version: version,
+                      });
+                    else local.localMonthlyBudget(month, value, version);
+                  }, "Общий лимит сохранён")
+                }
+              />
+              <div className="limit-allocation" aria-live="polite">
+                <span>
+                  Распределено <b>{currency(allocated)}</b>
+                </span>
+                <span>
+                  {monthlyLimit === null ? (
+                    "Задайте общий лимит для контроля"
+                  ) : (
+                    <>
+                      Осталось <b>{currency(monthlyLimit - allocated)}</b>
+                    </>
+                  )}
+                </span>
+              </div>
               <button
                 className="secondary copy-budget"
                 disabled={busy}
@@ -1259,20 +1298,30 @@ function Workspace({ user }: { user: string }) {
                     setNotice(
                       copied
                         ? `Скопировано категорий: ${copied}`
-                        : "Нет незаполненных категорий с планом прошлого месяца",
+                        : "Копирование завершено. Заполненные лимиты сохранены",
                     );
                   })
                 }
               >
                 Скопировать прошлый месяц
               </button>
-              <p className="hint">Заполненные категории сохранят свой план.</p>
+              <p className="hint">
+                Заполненные лимиты сохранятся. Общий лимит скопируется, если ещё
+                не задан.
+              </p>
               {cats.map((c) => (
                 <BudgetRow
                   key={`${month}-${c.id}`}
                   name={c.name}
                   spent={c.spent}
                   amount={c.budget ? parseMoney(c.budget.amount, true) : 0}
+                  maximum={
+                    monthlyLimit === null
+                      ? null
+                      : monthlyLimit -
+                        allocated +
+                        (c.budget ? parseMoney(c.budget.amount, true) : 0)
+                  }
                   version={c.budget?.version ?? 0}
                   busy={busy}
                   onSave={(value, version) =>
